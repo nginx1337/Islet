@@ -13,8 +13,8 @@ enum PreviewRenderer {
         let artwork = arguments.count > 1 ? try? Data(contentsOf: URL(fileURLWithPath: arguments[1])) : sampleArtwork()
 
         let state = NowPlayingState(
-            bundleID: "com.apple.Music", title: "Midnight City (Extended Version With A Very Long Title)",
-            artist: "M83", album: "Hurry Up, We're Dreaming", artworkData: artwork,
+            bundleID: "com.apple.Music", title: "Night Drive (Extended Version With A Very Long Title)",
+            artist: "Neon Coast", album: "Coastline", artworkData: artwork,
             duration: 243, elapsed: 97, timestamp: Date(), rate: 1, isPlaying: true)
         let clock = SystemClock()
         let switcher = SourceSwitcher(primary: StaticSource(state: state), fallback: StaticSource(state: nil), clock: clock)
@@ -27,6 +27,7 @@ enum PreviewRenderer {
             id: "builtin", frame: CGRect(x: 0, y: 0, width: 1512, height: 982), backingScale: 2,
             safeAreaTop: 32, auxiliaryLeftWidth: 662, auxiliaryRightWidth: 662, isBuiltIn: true, isMain: true)
         renderSettings(media: media, to: dir)
+        renderCutouts(artwork: artwork, clock: clock, to: dir)
         let filmScreen = ScreenDescriptor(
             id: "monitor", frame: CGRect(x: 0, y: 0, width: 2560, height: 1440), backingScale: 1,
             statusBarThickness: 22, visibleTopInset: 30)
@@ -148,6 +149,36 @@ enum PreviewRenderer {
         let url = dir.appendingPathComponent("settings.png")
         try? rep.representation(using: .png, properties: [:])?.write(to: url)
         print(url.path)
+    }
+
+    /// The island alone on a transparent background, at 3×, for the GitHub banner and card.
+    static func renderCutouts(artwork: Data?, clock: SystemClock, to dir: URL) {
+        let state = NowPlayingState(
+            bundleID: "com.apple.Music", title: "Night Drive", artist: "Neon Coast", album: "Coastline",
+            artworkData: artwork, duration: 214, elapsed: 83, timestamp: Date(), rate: 1, isPlaying: true)
+        let media = NowPlayingModel(switcher: SourceSwitcher(
+            primary: StaticSource(state: state), fallback: StaticSource(state: nil), clock: clock))
+        media.start()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+        let monitor = ScreenDescriptor(
+            id: "monitor", frame: CGRect(x: 0, y: 0, width: 2560, height: 1440), backingScale: 2,
+            statusBarThickness: 22, visibleTopInset: 30)
+        let layout = IslandLayoutEngine.layout(for: monitor, settings: LayoutSettings(compactTitle: true))
+        for (name, presentation) in [("cut-compact", IslandPresentation.compact(dimmed: false)), ("cut-expanded", .expanded(.hover))] {
+            let model = IslandViewModel(layout: layout)
+            model.setTitle(state.title)
+            model.setPresentation(presentation, animated: false)
+            let renderer = ImageRenderer(content: IslandRootView(model: model, media: media)
+                .environment(\.staticEqualizer, true))
+            renderer.scale = 3
+            renderer.isOpaque = false
+            if let tiff = renderer.nsImage?.tiffRepresentation,
+               let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
+                let url = dir.appendingPathComponent("\(name).png")
+                try? png.write(to: url)
+                print(url.path)
+            }
+        }
     }
 
     /// Gradient square standing in for album art.

@@ -1,4 +1,7 @@
-<p align="center"><img src="docs/icon.png" width="128" alt="Islet"></p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/banner-dark.png">
+  <img src="docs/banner-light.png" alt="Islet — Now Playing as an island at the top of the screen, macOS 27" width="100%">
+</picture>
 
 **Islet** shows "Now Playing" as an island at the top of the screen, like Dynamic Island on iPhone. macOS 27.
 
@@ -6,10 +9,13 @@ On a MacBook the island lives in the notch and grows out of it. On an external m
 
 [Русская версия](README.md)
 
+<img src="docs/overview.png" width="100%" alt="Islet: Swift 6, SwiftUI, Core Animation, Core Audio. About 5,900 lines, no telemetry, 95 tests, 0% idle CPU. Hover to expand; the bars follow the real sound; click the title to open the player; ⌃⌥⌘N expands and collapses.">
+
 | In the MacBook notch | On an external monitor |
 |---|---|
 | <img src="docs/notch-compact.png" alt="Compact island in the notch"> | <img src="docs/monitor-compact.png" alt="Compact island on a monitor"> |
 | <img src="docs/notch-expanded.png" alt="Expanded island in the notch"> | <img src="docs/monitor-expanded.png" alt="Expanded island on a monitor"> |
+| <img src="docs/notch-title-compact.png" alt="Compact island with the title in the notch"> | <img src="docs/monitor-title-compact.png" alt="Compact island with the title on a monitor"> |
 
 ## Behaviour
 
@@ -65,6 +71,8 @@ The position is computed, not polled: `elapsed + rate × (now − timestamp)`. T
 
 ## Privacy and resources
 
+Details, permissions and how to report a vulnerability: [SECURITY.md](SECURITY.md).
+
 - No telemetry, no analytics. The only network request is downloading Spotify artwork in fallback mode (Spotify provides it as a URL). Image only, no cookies, cached.
 - About 0 % CPU when idle. Audio capture and analysis (1024-point FFT, Accelerate) run only while the island is visible and a track plays: about 1–2 % CPU. The bars are Core Animation layers. A hidden or paused island has no audio capture, no timers and no pointer tracking.
 - No third-party dependencies apart from the bundled adapter.
@@ -82,7 +90,7 @@ The position is computed, not polled: `elapsed + rate × (now − timestamp)`. T
 
 The style is chosen per screen: a screen with a notch (`safeAreaInsets.top > 0`, notch width from `auxiliaryTopLeftArea`/`auxiliaryTopRightArea`) gets the notch style, every other screen the pill. The layout is a pure function of screen descriptions and settings, recomputed when a monitor is plugged in, the lid closes or the resolution changes. On monitors the menu bar height comes from `frame` vs `visibleFrame`: on macOS 27 `NSStatusBar.system.thickness` returns 22 pt while the bar is 30 pt, so it is only the fallback for an auto-hidden menu bar.
 
-Tests (Swift Testing, 90): JSON stream parsing (normal, empty, broken, split into chunks), every state-machine transition with an injected clock, frames for a notched screen, 1× and 2× monitors, two screens and configuration changes, interpolation, marquee, dominant colour on synthetic images, source failover, bars on synthetic tones (bass, mids, highs, silence), back/forward buttons.
+Tests (Swift Testing, 95): JSON stream parsing (normal, empty, broken, split into chunks), every state-machine transition with an injected clock, frames for a notched screen, 1× and 2× monitors, two screens and configuration changes, interpolation, marquee, dominant colour on synthetic images, source failover, bars on synthetic tones (bass, mids, highs, silence), back/forward buttons.
 
 ## Limitations
 
