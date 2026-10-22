@@ -17,6 +17,14 @@ struct SkipPlannerTests {
         #expect(SkipPlanner.forward(position: 10, duration: nil, mode: .seconds) == .seek(25))
     }
 
+    @Test func nextIsIgnoredOnlyWhenTheSameItemPlaysOn() {
+        #expect(SkipPlanner.nextWasIgnored(sameTrack: true, isPlaying: true, positionBefore: 100, positionAfter: 103))
+        #expect(!SkipPlanner.nextWasIgnored(sameTrack: false, isPlaying: true, positionBefore: 100, positionAfter: 1))
+        #expect(!SkipPlanner.nextWasIgnored(sameTrack: true, isPlaying: true, positionBefore: 100, positionAfter: 100.4),
+                "stalled: the next item is loading")
+        #expect(!SkipPlanner.nextWasIgnored(sameTrack: true, isPlaying: false, positionBefore: 100, positionAfter: 103))
+    }
+
     @Test func tracksModeSendsNext() {
         #expect(SkipPlanner.forward(position: 42, duration: 200, mode: .tracks) == .nextTrack)
     }

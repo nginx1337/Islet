@@ -43,6 +43,29 @@ enum PreviewRenderer {
             ("hidden", .hidden), ("compact", .compact(dimmed: false)),
             ("paused", .compact(dimmed: true)), ("expanded", .expanded(.hover))
         ]
+        // A short title, as in a real report: the compact island must hug it.
+        let shortState = NowPlayingState(
+            bundleID: "com.apple.Safari", title: "CREAM SODA - ПОДРУГА", artist: "CREAM SODA",
+            artworkData: artwork, duration: 200, elapsed: 30, timestamp: Date(), rate: 1, isPlaying: true)
+        let shortMedia = NowPlayingModel(switcher: SourceSwitcher(
+            primary: StaticSource(state: shortState), fallback: StaticSource(state: nil), clock: clock))
+        shortMedia.start()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+        for (name, screen) in [("monitor-short-title", monitor), ("notch-short-title", macBook)] {
+            let layout = IslandLayoutEngine.layout(for: screen, settings: LayoutSettings(compactTitle: true))
+            let model = IslandViewModel(layout: layout)
+            model.setTitle(shortState.title)
+            model.setPresentation(.compact(dimmed: false), animated: false)
+            let renderer = ImageRenderer(content: PreviewScene(layout: layout, screen: screen) {
+                IslandRootView(model: model, media: shortMedia)
+            }.environment(\.staticEqualizer, true))
+            renderer.scale = 2
+            if let tiff = renderer.nsImage?.tiffRepresentation,
+               let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
+                try? png.write(to: dir.appendingPathComponent("\(name).png"))
+            }
+        }
+
         let variants: [(String, ScreenDescriptor, Bool)] = [
             ("notch", macBook, false), ("monitor", monitor, false),
             ("notch-title", macBook, true), ("monitor-title", monitor, true)
@@ -51,6 +74,7 @@ enum PreviewRenderer {
             let layout = IslandLayoutEngine.layout(for: screen, settings: LayoutSettings(compactTitle: title))
             for (stateName, presentation) in states {
                 let model = IslandViewModel(layout: layout)
+                model.setTitle(media.state?.title)
                 model.setPresentation(presentation, animated: false)
                 let view = PreviewScene(layout: layout, screen: screen) {
                     IslandRootView(model: model, media: media)

@@ -150,6 +150,25 @@ struct GeometryTests {
         #expect(bounds.contains(notch.compact.hitRect))
     }
 
+    @Test func compactWidthFitsTheTitle() {
+        let layout = IslandLayoutEngine.layout(for: Self.monitor1x, settings: LayoutSettings(compactTitle: true))
+        let short = layout.compact(fittingTitle: 40)
+        #expect(short.frame.width == 150, "never narrower than without a title")
+        let medium = layout.compact(fittingTitle: 140)
+        #expect(medium.frame.width == 224, "two ears of 36 + title 140 + padding 12")
+        #expect(medium.frame.midX == layout.compact.frame.midX, "stays centred")
+        #expect(layout.compact(fittingTitle: 900) == layout.compact, "long titles get the full width and scroll")
+        #expect(layout.compact(fittingTitle: nil) == layout.compact)
+        let plain = IslandLayoutEngine.layout(for: Self.monitor1x, settings: LayoutSettings())
+        #expect(plain.compact(fittingTitle: 40) == plain.compact, "no title option, no change")
+
+        let notch = IslandLayoutEngine.layout(for: Self.macBook, settings: LayoutSettings(compactTitle: true))
+        let fitted = notch.compact(fittingTitle: 50)
+        #expect(fitted.frame.width == notch.compactBaseWidth + 2 * (50 + 12))
+        #expect(fitted.frame.midX == notch.compact.frame.midX, "centred on the notch")
+        #expect(fitted.frame.width < notch.compact.frame.width)
+    }
+
     // MARK: Several screens
 
     @Test func twoScreensGetTheirOwnStyles() {

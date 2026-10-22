@@ -13,8 +13,15 @@ public enum SkipPlanner {
     /// "Back" after this many seconds restarts the track instead of going to the previous one.
     public static let restartThreshold: TimeInterval = 3
     public static let step: TimeInterval = 15
-    /// If "next" did not change the track within this time, the player does not support it.
-    public static let nextTimeout: TimeInterval = 1.5
+    /// After "next", wait this long before deciding the player ignored it.
+    public static let nextTimeout: TimeInterval = 3
+
+    /// "Next" was ignored only if the same item is still there *and still playing on*:
+    /// a player that is loading the next item (a browser fetching the next video) usually stalls
+    /// or pauses the old one, which must not count as "not supported".
+    public static func nextWasIgnored(sameTrack: Bool, isPlaying: Bool, positionBefore: TimeInterval, positionAfter: TimeInterval) -> Bool {
+        sameTrack && isPlaying && positionAfter >= positionBefore + nextTimeout * 0.6
+    }
 
     public static func back(position: TimeInterval, mode: SkipMode) -> PlaybackCommand {
         switch mode {

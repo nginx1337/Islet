@@ -8,6 +8,8 @@ import SwiftUI
 final class IslandViewModel {
     var layout: IslandLayout
     private(set) var presentation: IslandPresentation = .hidden
+    /// Natural width of the current title in the compact font; the compact island hugs it.
+    private(set) var titleWidth: CGFloat?
     @ObservationIgnored var onClick: (() -> Void)?
 
     init(layout: IslandLayout) {
@@ -15,7 +17,27 @@ final class IslandViewModel {
     }
 
     var style: IslandStyle { layout.style }
-    var shape: ShapeSpec { layout.shape(for: presentation) }
+    var shape: ShapeSpec {
+        if case .compact = presentation { return compactShape }
+        return layout.shape(for: presentation)
+    }
+
+    var compactShape: ShapeSpec { layout.compact(fittingTitle: titleWidth) }
+
+    /// Font of the compact title; shared with the view so the measurement matches the drawing.
+    static func compactTitleFontSize(for layout: IslandLayout) -> CGFloat {
+        max(11, layout.compact.frame.height * 0.42)
+    }
+
+    func setTitle(_ title: String?) {
+        let width: CGFloat? = title.flatMap { text in
+            guard layout.compactTitle, !text.isEmpty else { return nil }
+            let font = NSFont.systemFont(ofSize: Self.compactTitleFontSize(for: layout), weight: .semibold)
+            return ceil((text as NSString).size(withAttributes: [.font: font]).width)
+        }
+        guard width != titleWidth else { return }
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { titleWidth = width }
+    }
 
     func setPresentation(_ new: IslandPresentation, animated: Bool = true) {
         let old = presentation
@@ -90,7 +112,9 @@ final class IslandController {
 
     func apply(layout: IslandLayout) {
         guard layout != viewModel.layout else { return }
+        let title = viewModel.titleWidth != nil || layout.compactTitle
         viewModel.layout = layout
+        if title { viewModel.setTitle(mediaTitle) }
         panel.setFrame(layout.panelFrame, display: true)
     }
 
@@ -98,7 +122,12 @@ final class IslandController {
         panel.setShowsInFullScreen(show)
     }
 
+    /// Title of the last media update (to re-measure when the layout or its scale changes).
+    private var mediaTitle: String?
+
     func mediaChanged(_ state: NowPlayingState?) {
+        mediaTitle = state?.title
+        viewModel.setTitle(state?.title)
         machine.mediaChanged(state)
     }
 

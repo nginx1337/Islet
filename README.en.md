@@ -36,7 +36,7 @@ scripts/test.sh                 # tests, app bundle and launch self-check
 
 Install: drag `build/Islet.app` into Applications and open it. The icon appears in the menu bar (there is no Dock icon). Settings are in that menu, or open Islet again from Finder.
 
-Self-check: `build/Islet.app/Contents/MacOS/Islet --self-check` starts the app, prints the data source, current track, screens and islands, and exits with 0 (OK) or 1.
+Self-check: `build/Islet.app/Contents/MacOS/Islet --self-check` starts the app, prints the data source, current track, screens and islands, and exits with 0 (OK), 2 (works only in fallback mode) or 1 (broken). It waits for the adapter's own check, so a blocked MediaRemote cannot pass as OK.
 
 ### If macOS refuses to open it
 

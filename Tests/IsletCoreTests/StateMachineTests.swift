@@ -269,6 +269,40 @@ struct StateMachineTests {
         #expect(machine.presentation == .expanded(.hover))
     }
 
+    @Test func hotkeyExpansionClosesWhenPointerLeavesWithHoverOff() {
+        let machine = makeMachine { $0.expandOnHover = false }
+        machine.mediaChanged(track("A"))
+        clock.advance(by: 3.1)
+        machine.hotkeyPressed()
+        machine.pointerEntered()
+        clock.advance(by: 6)
+        #expect(machine.presentation == .expanded(.hotkey), "stays open under the pointer")
+        machine.pointerExited()
+        clock.advance(by: 0.5)
+        #expect(machine.presentation == .compact(dimmed: false))
+    }
+
+    @Test func turningAutoHideOffShowsHiddenPausedMedia() {
+        let machine = makeMachine()
+        machine.mediaChanged(track("A", playing: false))
+        clock.advance(by: 16)
+        #expect(machine.presentation == .hidden)
+        machine.behavior.pauseHideDelay = nil
+        #expect(machine.presentation == .compact(dimmed: true))
+        #expect(machine.activeTimerCount == 0)
+    }
+
+    @Test func changingTheDelayWhilePausedUsesTheNewDelay() {
+        let machine = makeMachine()
+        machine.mediaChanged(track("A", playing: false))
+        clock.advance(by: 5)
+        machine.behavior.pauseHideDelay = 60
+        clock.advance(by: 15)
+        #expect(machine.presentation == .compact(dimmed: true), "the old 15 s timer is gone")
+        clock.advance(by: 46)
+        #expect(machine.presentation == .hidden)
+    }
+
     @Test func hoverOnHiddenIslandIsIgnored() {
         let machine = makeMachine()
         machine.pointerEntered()

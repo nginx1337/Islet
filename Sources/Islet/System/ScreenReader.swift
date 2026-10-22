@@ -19,10 +19,15 @@ enum ScreenReader {
     static func descriptors() -> [ScreenDescriptor] {
         let screens = NSScreen.screens
         let thickness = NSStatusBar.system.thickness
+        // Identical monitors can report the same UUID (same or empty EDID serial):
+        // add the display number to any repeated one so each screen keeps its own island.
+        let ids = screens.map { id(of: $0) }
+        var seen: [String: Int] = [:]
+        for id in ids { seen[id, default: 0] += 1 }
         return screens.enumerated().map { index, screen in
             let display = displayID(of: screen)
             return ScreenDescriptor(
-                id: id(of: screen),
+                id: seen[ids[index], default: 0] > 1 ? "\(ids[index])#\(display.map(String.init) ?? String(index))" : ids[index],
                 frame: screen.frame,
                 backingScale: screen.backingScaleFactor,
                 safeAreaTop: screen.safeAreaInsets.top,
@@ -34,9 +39,5 @@ enum ScreenReader {
                 statusBarThickness: thickness,
                 visibleTopInset: max(0, screen.frame.maxY - screen.visibleFrame.maxY))
         }
-    }
-
-    static func screen(withID id: String) -> NSScreen? {
-        NSScreen.screens.first { Self.id(of: $0) == id }
     }
 }

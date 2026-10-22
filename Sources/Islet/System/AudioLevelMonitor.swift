@@ -115,7 +115,7 @@ final class AudioLevelMonitor {
         description.muteBehavior = .unmuted
         try check(AudioHardwareCreateProcessTap(description, &tapID), "AudioHardwareCreateProcessTap")
 
-        let outputUID = try defaultOutputUID()
+        let (outputDevice, outputUID) = try defaultOutput()
         let aggregate: [String: Any] = [
             kAudioAggregateDeviceNameKey: "Islet Levels",
             kAudioAggregateDeviceUIDKey: "app.islet.levels.\(UUID().uuidString)",
@@ -131,13 +131,24 @@ final class AudioLevelMonitor {
         ]
         try check(AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &aggregateID), "AudioHardwareCreateAggregateDevice")
 
+        // The aggregate's input lists the output device's own inputs first (the microphone of a
+        // USB headset or audio interface), then the tap. Those inputs are switched off for our
+        // callback and skipped, so the microphone is never opened or measured.
+        let deviceInputs = inputStreamCount(of: outputDevice)
+        let allInputs = inputStreamCount(of: aggregateID)
+        let skip = min(deviceInputs, max(0, allInputs - 1))
+
         let format = try tapFormat()
         let analyzer = SpectrumAnalyzer(sampleRate: format.mSampleRate)
-        let mixer = MonoMixer(analyzer: analyzer)
+        let mixer = MonoMixer(analyzer: analyzer, skipBuffers: skip)
         var proc: AudioDeviceIOProcID?
         try check(AudioDeviceCreateIOProcIDWithBlock(&proc, aggregateID, queue, Self.ioBlock(mixer)),
                   "AudioDeviceCreateIOProcIDWithBlock")
         procID = proc
+        if skip > 0, let proc {
+            try check(switchOffInputs(first: skip, for: proc), "switch off device inputs")
+            Log.system.info("audio tap: \(skip) device input stream(s) switched off")
+        }
         try check(AudioDeviceStart(aggregateID, proc), "AudioDeviceStart")
     }
 
@@ -158,7 +169,38 @@ final class AudioLevelMonitor {
         tapID = AudioObjectID(kAudioObjectUnknown)
     }
 
-    private func defaultOutputUID() throws -> String {
+    private func inputStreamCount(of device: AudioObjectID) -> Int {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyStreams,
+            mScope: kAudioObjectPropertyScopeInput, mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(device, &address, 0, nil, &size) == noErr else { return 0 }
+        return Int(size) / MemoryLayout<AudioStreamID>.size
+    }
+
+    /// Marks the first `count` input streams as unused by our callback (`kAudioDevicePropertyIOProcStreamUsage`).
+    private func switchOffInputs(first count: Int, for proc: AudioDeviceIOProcID) -> OSStatus {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyIOProcStreamUsage,
+            mScope: kAudioObjectPropertyScopeInput, mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        var status = AudioObjectGetPropertyDataSize(aggregateID, &address, 0, nil, &size)
+        guard status == noErr, size >= UInt32(MemoryLayout<AudioHardwareIOProcStreamUsage>.size) else { return status }
+        let raw = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: 16)
+        defer { raw.deallocate() }
+        raw.initializeMemory(as: UInt8.self, repeating: 0, count: Int(size))
+        let usage = raw.assumingMemoryBound(to: AudioHardwareIOProcStreamUsage.self)
+        usage.pointee.mIOProc = unsafeBitCast(proc, to: UnsafeMutableRawPointer.self)
+        status = AudioObjectGetPropertyData(aggregateID, &address, 0, nil, &size, raw)
+        guard status == noErr else { return status }
+        let streams = Int(usage.pointee.mNumberStreams)
+        let offset = MemoryLayout<AudioHardwareIOProcStreamUsage>.offset(of: \.mStreamIsOn) ?? 8 + MemoryLayout<UInt32>.size
+        let flags = raw.advanced(by: offset).assumingMemoryBound(to: UInt32.self)
+        for i in 0..<min(count, streams) { flags[i] = 0 }
+        return AudioObjectSetPropertyData(aggregateID, &address, 0, nil, size, raw)
+    }
+
+    private func defaultOutput() throws -> (AudioObjectID, String) {
         var device = AudioObjectID(kAudioObjectUnknown)
         var size = UInt32(MemoryLayout<AudioObjectID>.size)
         var address = AudioObjectPropertyAddress(
@@ -170,7 +212,7 @@ final class AudioLevelMonitor {
         size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
         try check(AudioObjectGetPropertyData(device, &address, 0, nil, &size, &uid), "output device UID")
         guard let uid else { throw TapError(step: "output device UID", code: -1) }
-        return uid.takeRetainedValue() as String
+        return (device, uid.takeRetainedValue() as String)
     }
 
     private func tapFormat() throws -> AudioStreamBasicDescription {
@@ -217,16 +259,21 @@ final class AudioLevelMonitor {
 /// levels to the main queue at most 30 times a second.
 nonisolated private final class MonoMixer: @unchecked Sendable {
     private let analyzer: SpectrumAnalyzer
+    /// Leading buffers that belong to the output device's own inputs (a microphone), never read.
+    private let skipBuffers: Int
     private var mono: [Float] = []
     private var lastPost: UInt64 = 0
     private static let postInterval: UInt64 = 33_000_000 // ns
 
-    init(analyzer: SpectrumAnalyzer) {
+    init(analyzer: SpectrumAnalyzer, skipBuffers: Int) {
         self.analyzer = analyzer
+        self.skipBuffers = skipBuffers
     }
 
     func consume(_ input: UnsafePointer<AudioBufferList>) {
-        let buffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
+        let all = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
+        guard all.count > skipBuffers else { return }
+        let buffers = all[skipBuffers...]
         guard let first = buffers.first, first.mDataByteSize > 0 else { return }
         let interleaved = Int(max(1, first.mNumberChannels))
         let frames = Int(first.mDataByteSize) / (MemoryLayout<Float>.size * interleaved)

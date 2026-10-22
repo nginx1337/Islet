@@ -82,12 +82,16 @@ final class NowPlayingModel {
         pendingNextCheck?.cancel()
         let check = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated {
-                guard let self, let now = self.state, now.trackID == trackID else { return }
+                guard let self, let now = self.state else { return }
+                let after = PlaybackTimeline.position(of: now, at: Date())
+                guard SkipPlanner.nextWasIgnored(
+                    sameTrack: now.trackID == trackID, isPlaying: now.isPlaying,
+                    positionBefore: position, positionAfter: after)
+                else { return }
                 Log.source.info("next track not supported here, skipping 15 s")
                 self.secondsOnlyTracks.insert(trackID)
                 self.skipMode = .seconds
-                let position = PlaybackTimeline.position(of: now, at: Date())
-                self.perform(.seek(SkipPlanner.clampedForward(position: position, duration: now.duration)))
+                self.perform(.seek(SkipPlanner.clampedForward(position: after, duration: now.duration)))
             }
         }
         pendingNextCheck = check
@@ -148,7 +152,11 @@ final class NowPlayingModel {
         }
         if state.trackID != artworkTrackID {
             artworkTrackID = state.trackID
-            if state.artworkKey == nil { setArtwork(nil) }
+            // A new track never keeps the previous cover: show the placeholder until its own
+            // artwork is decoded (or for good, if decoding or the download fails).
+            if state.artworkKey.map({ cache.value(for: $0) == nil }) ?? true {
+                setArtwork(nil)
+            }
         }
         // Same track and the artwork briefly vanished (happens while seeking): keep the picture.
         guard let key = state.artworkKey else { return }

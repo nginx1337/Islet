@@ -50,7 +50,7 @@ public final class IslandStateMachine {
     public private(set) var media: NowPlayingState?
     public private(set) var isPointerInside = false
     public var behavior: IslandBehavior {
-        didSet { if behavior.pauseHideDelay != oldValue.pauseHideDelay { restartPauseTimerIfNeeded() } }
+        didSet { if behavior.pauseHideDelay != oldValue.pauseHideDelay { pauseDelayChanged() } }
     }
 
     /// Called with (old, new) on every presentation change.
@@ -135,7 +135,9 @@ public final class IslandStateMachine {
 
     public func pointerExited() {
         isPointerInside = false
-        guard let expansion, expansion == .hover || expansion == .click else { return }
+        // A hotkey expansion also closes once the pointer has been on it and leaves
+        // (with "expand on hover" off it never turns into a hover expansion).
+        guard let expansion, expansion == .hover || expansion == .click || expansion == .hotkey else { return }
         arm(.collapse, after: behavior.collapseDelay) { [weak self] in
             guard let self, !self.isPointerInside else { return }
             self.expansion = nil
@@ -176,6 +178,15 @@ public final class IslandStateMachine {
     }
 
     // MARK: Internals
+
+    /// The auto-hide setting changed: turning it off brings hidden paused media back,
+    /// a new delay starts counting again from now.
+    private func pauseDelayChanged() {
+        disarm(.pauseHide)
+        if behavior.pauseHideDelay == nil { pauseExpired = false }
+        restartPauseTimerIfNeeded()
+        recompute()
+    }
 
     private func restartPauseTimerIfNeeded() {
         guard let media, !media.isPlaying, !pauseExpired else {

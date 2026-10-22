@@ -45,6 +45,13 @@ struct AdapterPaths {
 /// browsers and podcast apps. Commands are sent the same way (`send`, `seek`).
 final class MediaRemoteAdapterSource: NowPlayingSource {
     let kind = SourceKind.mediaRemote
+
+    enum EntitlementTest: Equatable {
+        case notRun, running, passed, failed, skipped
+        var isFinished: Bool { self == .passed || self == .failed || self == .skipped }
+    }
+    /// Result of the adapter's own `test` for the latest start (read by `--self-check`).
+    static private(set) var entitlementTest = EntitlementTest.notRun
     static let perl = URL(fileURLWithPath: "/usr/bin/perl")
 
     private let paths: AdapterPaths?
@@ -196,7 +203,11 @@ final class MediaRemoteAdapterSource: NowPlayingSource {
     /// The adapter's own check: can Perl still read MediaRemote? Without it, a blocked MediaRemote
     /// would look like "nothing is playing" forever instead of switching to the fallback.
     private func runEntitlementTest(_ paths: AdapterPaths, token: Int) {
-        guard let client = paths.testClient else { return }
+        guard let client = paths.testClient else {
+            Self.entitlementTest = .skipped
+            return
+        }
+        Self.entitlementTest = .running
         let test = Process()
         test.executableURL = Self.perl
         test.arguments = [paths.script.path, paths.framework.path, client.path, "test"]
@@ -208,6 +219,7 @@ final class MediaRemoteAdapterSource: NowPlayingSource {
                 MainActor.assumeIsolated {
                     guard let self, token == self.generation else { return }
                     self.testProcess = nil
+                    Self.entitlementTest = status == 0 ? .passed : .failed
                     if status != 0 {
                         Log.source.error("adapter test failed with \(status)")
                         let handler = self.handler
@@ -223,6 +235,7 @@ final class MediaRemoteAdapterSource: NowPlayingSource {
             try test.run()
             testProcess = test
         } catch {
+            Self.entitlementTest = .skipped
             Log.source.error("adapter test: \(error.localizedDescription, privacy: .public)")
         }
     }

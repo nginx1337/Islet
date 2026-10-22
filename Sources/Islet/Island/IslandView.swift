@@ -14,7 +14,8 @@ struct IslandRootView: View {
         let layout = model.layout
         let shape = model.shape
         ZStack(alignment: .topLeading) {
-            IslandBody(layout: layout, presentation: model.presentation, shape: shape, media: media) {
+            IslandBody(layout: layout, presentation: model.presentation, shape: shape,
+                       compactFrame: model.compactShape.frame, media: media) {
                 model.onClick?()
             }
             .frame(width: shape.frame.width, height: shape.frame.height)
@@ -34,22 +35,23 @@ struct CompactMetrics {
     let artCenter: CGPoint
     let barsCenter: CGPoint
     let titleRect: CGRect?
+    let titleFontSize: CGFloat
 
-    init(layout: IslandLayout) {
-        let frame = layout.compact.frame
+    init(layout: IslandLayout, frame: CGRect) {
         size = frame.size
         let h = frame.height
         art = max(14, min(h - 10, 24))
         switch layout.style {
         case .notch:
             let side = max(0, (frame.width - layout.notchWidth) / 2)
-            ear = min(side, (max(h, 24) * 1.15 * layout.scale).rounded())
+            ear = min(side, layout.compactEar)
             titleRect = layout.compactTitle && side - ear > 24
                 ? CGRect(x: ear, y: 0, width: side - ear - 8, height: h) : nil
         case .floating:
-            ear = h + 6
+            ear = layout.compactEar
             titleRect = layout.compactTitle ? CGRect(x: ear, y: 0, width: frame.width - 2 * ear, height: h) : nil
         }
+        titleFontSize = IslandViewModel.compactTitleFontSize(for: layout)
         artCenter = CGPoint(x: ear / 2, y: h / 2)
         barsCenter = CGPoint(x: frame.width - ear / 2, y: h / 2)
     }
@@ -81,11 +83,13 @@ struct IslandBody: View {
     let layout: IslandLayout
     let presentation: IslandPresentation
     let shape: ShapeSpec
+    /// Compact frame fitted to the title (the layout's own compact frame is the widest case).
+    let compactFrame: CGRect
     let media: NowPlayingModel
     let onClick: () -> Void
 
     var body: some View {
-        let compact = CompactMetrics(layout: layout)
+        let compact = CompactMetrics(layout: layout, frame: compactFrame)
         let expanded = ExpandedMetrics(layout: layout)
         let isExpanded = presentation.isExpanded
         let isCompact: Bool = if case .compact = presentation { true } else { false }
@@ -184,7 +188,7 @@ struct CompactLayer: View {
             if let title = metrics.titleRect {
                 MarqueeText(
                     text: media.state?.title ?? "",
-                    font: .system(size: max(11, metrics.size.height * 0.42), weight: .semibold),
+                    font: .system(size: metrics.titleFontSize, weight: .semibold),
                     color: Color(accent.nsColor), active: playing, edgeBlur: true)
                     .frame(width: title.width)
                     .position(x: title.midX, y: title.midY)

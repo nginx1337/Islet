@@ -161,6 +161,28 @@ public struct IslandLayout: Equatable, Sendable {
     public var scale: CGFloat
     /// The compact island has room for the title.
     public var compactTitle: Bool = false
+    /// Compact width without the title.
+    public var compactBaseWidth: CGFloat = 0
+    /// Width of the part of each ear that holds the artwork (left) or the bars (right).
+    public var compactEar: CGFloat = 0
+
+    /// The compact shape narrowed to the title, so a short title leaves no empty gap.
+    /// `compact` itself is the widest it gets (long titles scroll inside it).
+    public func compact(fittingTitle titleWidth: CGFloat?) -> ShapeSpec {
+        guard compactTitle, let titleWidth, titleWidth > 0, compactBaseWidth > 0 else { return compact }
+        let padding: CGFloat = 12 * scale
+        let width: CGFloat = switch style {
+        case .floating:
+            max(compactBaseWidth, 2 * compactEar + titleWidth + padding)
+        case .notch:
+            // The title sits in the left ear; both ears grow by the same amount to stay centred on the notch.
+            compactBaseWidth + 2 * max(0, titleWidth + padding)
+        }
+        let fitted = min(compact.frame.width, width.rounded(.up))
+        var spec = compact
+        spec.frame = CGRect(x: compact.frame.midX - fitted / 2, y: compact.frame.minY, width: fitted, height: compact.frame.height)
+        return spec
+    }
 
     public func shape(for presentation: IslandPresentation) -> ShapeSpec {
         switch presentation {
@@ -235,7 +257,8 @@ public enum IslandLayoutEngine {
         let px = PixelGrid(scale: screen.backingScale)
         let h = px.round(notch.height)
         // With a title, each ear widens: the title sits in the left one after the artwork.
-        let ear = px.round(max(h, 24) * 1.15 * s + (title ? Metrics.notchTitleEar * s : 0))
+        let baseEar = px.round(max(h, 24) * 1.15 * s)
+        let ear = baseEar + (title ? px.round(Metrics.notchTitleEar * s) : 0)
         let flare = px.round(Metrics.notchTopFlare)
         let expandedWidth = px.round(max(Metrics.expandedWidth * s, notch.width + 2 * ear + 40))
         let expandedHeight = px.round(h + Metrics.expandedContentHeight * s)
@@ -267,7 +290,8 @@ public enum IslandLayoutEngine {
         return IslandLayout(
             screenID: screen.id, style: .notch, panelFrame: panelFrame,
             hidden: hidden, compact: compact, expanded: expanded,
-            contentTopInset: h, notchWidth: notch.width, scale: s)
+            contentTopInset: h, notchWidth: notch.width, scale: s,
+            compactBaseWidth: notch.width + 2 * baseEar, compactEar: baseEar)
     }
 
     // MARK: Floating
@@ -308,7 +332,8 @@ public enum IslandLayoutEngine {
         return IslandLayout(
             screenID: screen.id, style: .floating, panelFrame: panelFrame,
             hidden: hidden, compact: compact, expanded: expanded,
-            contentTopInset: 0, notchWidth: 0, scale: s)
+            contentTopInset: 0, notchWidth: 0, scale: s,
+            compactBaseWidth: px.round(Metrics.floatingCompactWidth * s), compactEar: compactHeight + 6)
     }
 }
 

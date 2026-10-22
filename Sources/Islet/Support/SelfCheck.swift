@@ -4,13 +4,19 @@ import IsletCore
 /// `Islet --self-check`: starts the app for real (source, panels), waits for the data source to
 /// settle, prints what it sees and exits. Exit code 0 means the app works on this Mac.
 enum SelfCheck {
-    static let timeout: TimeInterval = 10
+    static let timeout: TimeInterval = 15
 
     static func run(model: AppModel) {
         let started = Date()
         func poll() {
             let status = model.media.sourceStatus
-            let settled = status != .starting
+            // "Primary" alone is not enough: a blocked MediaRemote also streams (empty) data.
+            // Wait for the adapter's own check, which takes a few seconds when it fails.
+            let settled = switch status {
+            case .starting: false
+            case .primary: MediaRemoteAdapterSource.entitlementTest.isFinished
+            case .fallback, .unavailable: true
+            }
             if settled || Date().timeIntervalSince(started) > timeout {
                 // Give the first state a moment to reach the islands.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
@@ -28,13 +34,21 @@ enum SelfCheck {
     private static func finish(model: AppModel) {
         var lines: [String] = []
         var ok = true
+        var degraded = false
         let status = model.media.sourceStatus
         lines.append("Islet self-check")
         lines.append("macOS: \(ProcessInfo.processInfo.operatingSystemVersionString)")
         lines.append("adapter files: \(AdapterPaths.locate() != nil ? "found" : "missing")")
         switch status {
-        case .primary: lines.append("source: primary (MediaRemote adapter)")
-        case .fallback(let reason): lines.append("source: fallback (Music/Spotify), reason: \(reason)")
+        case .primary:
+            lines.append("source: primary (MediaRemote adapter), check: \(MediaRemoteAdapterSource.entitlementTest)")
+            if !MediaRemoteAdapterSource.entitlementTest.isFinished {
+                lines.append("error: the adapter check did not finish within \(Int(timeout)) s")
+                ok = false
+            }
+        case .fallback(let reason):
+            lines.append("source: fallback (Music/Spotify), reason: \(reason)")
+            degraded = true
         case .starting:
             lines.append("source: did not start within \(Int(timeout)) s")
             ok = false
@@ -66,10 +80,11 @@ enum SelfCheck {
             lines.append("error: media is playing but an island is hidden")
             ok = false
         }
-        lines.append(ok ? "result: OK" : "result: FAILED")
+        lines.append(!ok ? "result: FAILED" : degraded ? "result: WORKS IN FALLBACK MODE" : "result: OK")
         print(lines.joined(separator: "\n"))
         fflush(stdout)
         model.shutdown()
-        exit(ok ? 0 : 1)
+        // 0: works, 1: broken, 2: works only through the Music/Spotify fallback.
+        exit(!ok ? 1 : degraded ? 2 : 0)
     }
 }

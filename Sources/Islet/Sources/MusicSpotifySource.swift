@@ -55,7 +55,7 @@ final class MusicSpotifySource: NowPlayingSource {
             let bundle = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier
             MainActor.assumeIsolated {
                 guard let self, let bundle, let player = Player(rawValue: bundle) else { return }
-                self.states[player] = nil
+                self.forget(player)
                 self.publish()
             }
         })
@@ -79,6 +79,7 @@ final class MusicSpotifySource: NowPlayingSource {
         observers.removeAll()
         handler = nil
         states.removeAll()
+        artworkTrack.removeAll()
     }
 
     func perform(_ command: PlaybackCommand) {
@@ -116,7 +117,7 @@ final class MusicSpotifySource: NowPlayingSource {
     private func received(_ info: [String: String], from player: Player) {
         let stateText = info["Player State"] ?? ""
         guard stateText != "Stopped", let title = info["Name"], !title.isEmpty else {
-            states[player] = nil
+            forget(player)
             publish()
             return
         }
@@ -213,10 +214,21 @@ final class MusicSpotifySource: NowPlayingSource {
         }
     }
 
+    /// Drops a player's state and its artwork bookkeeping, so the same track gets artwork again later.
+    private func forget(_ player: Player) {
+        states[player] = nil
+        artworkTrack[player] = nil
+    }
+
+    /// Longest a script may wait for Music or Spotify. Scripts run on the main thread, so a busy
+    /// or hung player must not freeze the island for the Apple Event default of one to two minutes.
+    static let scriptTimeout = 2
+
     @discardableResult
     private func run(_ source: String) -> NSAppleEventDescriptor? {
         var error: NSDictionary?
-        let result = NSAppleScript(source: source)?.executeAndReturnError(&error)
+        let bounded = "with timeout of \(Self.scriptTimeout) seconds\n\(source)\nend timeout"
+        let result = NSAppleScript(source: bounded)?.executeAndReturnError(&error)
         if let error {
             Log.source.error("AppleScript: \(String(describing: error[NSAppleScript.errorMessage] ?? error), privacy: .public)")
         }
