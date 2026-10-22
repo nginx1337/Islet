@@ -1,0 +1,2 @@
+"NSAppleEventsUsageDescription" = "Islet reads the current track, position and artwork from Music and Spotify and sends play, pause and skip commands. Only used in fallback mode.";
+"NSAudioCaptureUsageDescription" = "Islet listens to the sound your Mac plays to move the equaliser bars with the bass and the music. Only loudness levels are measured; nothing is recorded or changed.";

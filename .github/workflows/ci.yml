@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    # Islet targets macOS 27 and needs the macOS 27 SDK (Xcode 27).
+    # Change the runner label if GitHub names its macOS 27 image differently.
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcrun --show-sdk-version
+          swift --version
+      - name: Unit tests
+        run: swift test
+      - name: Build app bundle
+        run: scripts/build-app.sh release
+      - name: Release build has no debug hooks or build paths
+        run: |
+          BIN=build/Islet.app/Contents/MacOS/Islet
+          if strings -a "$BIN" | grep -E "render-preview|/Users/|/home/"; then
+            echo "Debug-only code or local paths found in the release binary" >&2
+            exit 1
+          fi
+          if nm -ap "$BIN" | grep -E " (OSO|SO) "; then
+            echo "Debug symbols with source paths found in the release binary" >&2
+            exit 1
+          fi
+      - name: Bundle contains the adapter and its license
+        run: |
+          test -f build/Islet.app/Contents/Resources/mediaremote-adapter.pl
+          test -d build/Islet.app/Contents/Frameworks/MediaRemoteAdapter.framework
+          test -x build/Islet.app/Contents/Helpers/MediaRemoteAdapterTestClient
+          test -f build/Islet.app/Contents/Resources/Licenses/mediaremote-adapter-LICENSE.txt
+          codesign --verify --deep --strict build/Islet.app

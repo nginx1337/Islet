@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>ru</string>
+	</array>
+	<key>CFBundleDisplayName</key>
+	<string>Islet</string>
+	<key>CFBundleName</key>
+	<string>Islet</string>
+	<key>CFBundleExecutable</key>
+	<string>Islet</string>
+	<key>CFBundleIdentifier</key>
+	<string>app.islet.mac</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>27.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.music</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 nginx1337. MIT License.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Islet listens to the sound your Mac plays to move the equaliser bars with the bass and the music. Only loudness levels are measured; nothing is recorded or changed.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Islet reads the current track, position and artwork from Music and Spotify and sends play, pause and skip commands. Only used in fallback mode.</string>
+</dict>
+</plist>
