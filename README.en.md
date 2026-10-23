@@ -56,10 +56,13 @@ Requires macOS 27 and the Command Line Tools (Xcode is optional). No paid develo
 ```bash
 scripts/build-app.sh            # release → build/Islet.app
 scripts/install.sh              # build and install into /Applications, replacing the old version
+scripts/update.sh               # download the latest version from GitHub, check, build and install it
 scripts/audit.sh                # security audit of the sources
 swift test                      # core unit tests
 scripts/test.sh                 # tests, app bundle and launch self-check
 ```
+
+Updates: Settings (**Updates → Check for updates**). It checks only when you press it. If there is a new version, "Update…" opens Terminal, which shows the version, checks it, builds it from source and replaces the old one.
 
 Install: `scripts/install.sh` builds the app, quits the running copy, moves the old version out of Applications into the Trash (so it can be put back), installs the new one and starts it. Settings are kept. By hand: drag `build/Islet.app` into Applications and open it. If a new copy starts while an old one is running, the old one quits by itself. The icon appears in the menu bar (there is no Dock icon). Settings are in that menu, or open Islet again from Finder.
 
@@ -94,7 +97,7 @@ The position is computed, not polled: `elapsed + rate × (now − timestamp)`. T
 
 Details, permissions and how to report a vulnerability: [SECURITY.md](SECURITY.md).
 
-- No telemetry, no analytics. The only network request is downloading Spotify artwork in fallback mode (Spotify provides it as a URL). Image only, no cookies, cached.
+- No telemetry, no analytics. There are two network requests: the Spotify artwork download in fallback mode (Spotify provides it as a URL; image only, no cookies, cached) and the update check, only when you press its button.
 - About 0 % CPU when idle. Audio capture and analysis (1024-point FFT, Accelerate) run only while the island is visible and a track plays: about 1–2 % CPU. The bars are Core Animation layers. A hidden or paused island has no audio capture, no timers and no pointer tracking.
 - No third-party dependencies apart from the bundled adapter.
 

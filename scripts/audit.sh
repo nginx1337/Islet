@@ -38,8 +38,16 @@ usage=$(grep -o '<key>NS[A-Za-z]*UsageDescription</key>' Resources/Info.plist | 
 
 # 2. Network: only the Spotify artwork download, over an ephemeral session, https only.
 only_in 'URLSession|URLRequest|NWConnection|NWPathMonitor|CFNetwork|WKWebView|import WebKit' \
-    'Sources/Islet/App/NowPlayingModel.swift' 'network API'
+    'Sources/Islet/App/NowPlayingModel.swift Sources/Islet/Settings/UpdateChecker.swift' 'network API'
 nowhere 'http://' 'plain http URL'
+# The update check talks to the GitHub API only, and the update script to GitHub's API and source archives.
+hosts=$(grep -oE 'https://[A-Za-z0-9.-]+' Sources/Islet/Settings/UpdateChecker.swift | sort -u | tr '\n' ' ')
+[ "$hosts" = "https://api.github.com " ] || fail "UpdateChecker contacts: $hosts"
+hosts=$(grep -oE 'https?://[A-Za-z0-9.-]+' scripts/update.sh | sort -u | tr '\n' ' ')
+[ "$hosts" = "https://api.github.com https://codeload.github.com " ] || fail "update.sh contacts: $hosts"
+if grep -nE '\b(Timer|scheduledTimer|asyncAfter|BGTask)\b' Sources/Islet/Settings/UpdateChecker.swift >/dev/null; then
+    fail "UpdateChecker must only run when the button is pressed"
+fi
 
 # 3. Other programs: the adapter runs through /usr/bin/perl, fallback mode talks to Music and Spotify.
 only_in '\bProcess\(\)|NSTask|posix_spawn|execv|popen' \
