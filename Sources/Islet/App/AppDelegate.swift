@@ -18,10 +18,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         source.resume()
         termSource = source
 
+        // A newer copy replaces an older one: ask any other running Islet to quit, so two islands never
+        // fight over the screen. Not in --self-check, which must not touch the installed app.
+        if !selfCheck { Self.quitOtherInstances() }
+
         let model = AppModel()
         self.model = model
         model.start(withMenu: !selfCheck)
         if selfCheck { SelfCheck.run(model: model) }
+    }
+
+    /// Asks other running copies with the same bundle identifier to quit (a normal quit, not a kill).
+    private static func quitOtherInstances() {
+        guard let identifier = Bundle.main.bundleIdentifier else { return }
+        let me = ProcessInfo.processInfo.processIdentifier
+        for app in NSRunningApplication.runningApplications(withBundleIdentifier: identifier) where app.processIdentifier != me {
+            app.terminate()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

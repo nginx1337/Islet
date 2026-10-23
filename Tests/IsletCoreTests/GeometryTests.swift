@@ -267,7 +267,9 @@ struct GeometryTests {
         #expect(layout.compact.frame.minY == 0, "attached to the top edge")
         #expect(layout.compact.frame.height == 30, "as tall as the menu bar")
         #expect(layout.compact.topFlare > 0)
-        #expect(layout.notchWidth == monitor.virtualNotchRect.width)
+        #expect(layout.isDrawnNotch)
+        #expect(layout.notchWidth == 0, "nothing is hidden in the middle")
+        #expect(layout.compact.frame.width < 200, "a compact tab, not a long bar")
         #expect(layout.hidden.opacity == 0, "a drawn notch has nothing to hide in")
         #expect(layout.expanded.frame.height > layout.compact.frame.height + 80)
         let bounds = CGRect(origin: .zero, size: layout.panelFrame.size)
@@ -282,6 +284,20 @@ struct GeometryTests {
         let automatic = IslandLayoutEngine.layout(for: Self.macBook, settings: LayoutSettings())
         #expect(layout == automatic)
         #expect(layout.hidden.opacity == 1)
+    }
+
+    @Test func drawnNotchWithTitleStaysShortAndHugsTheTitle() {
+        var monitor = Self.monitor1x
+        monitor.visibleTopInset = 30
+        let layout = IslandLayoutEngine.layout(
+            for: monitor, settings: LayoutSettings(compactTitle: true, stylePreference: .notch))
+        #expect(layout.compact.frame.width < 330)
+        let short = layout.compact(fittingTitle: 30)
+        let long = layout.compact(fittingTitle: 500)
+        #expect(short.frame.width >= layout.compactBaseWidth)
+        #expect(short.frame.width < long.frame.width)
+        #expect(long.frame.width == layout.compact.frame.width, "never wider than the widest compact shape")
+        #expect(short.frame.midX == layout.compact.frame.midX, "stays centred")
     }
 }
 

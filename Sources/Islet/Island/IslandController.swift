@@ -24,7 +24,7 @@ final class IslandViewModel {
     /// Where the second capsule is right now, or nil when there is no activity.
     var satelliteFrame: CGRect? {
         guard let activity = activities.current else { return nil }
-        let width = SatellitePlacement.width(for: activity.content, scale: layout.scale)
+        let width = SatellitePlacement.width(for: activity.content, hovering: satelliteHovering, scale: layout.scale)
         return SatellitePlacement.frame(in: layout, main: shape, mainHidden: presentation.isHidden, width: width)
     }
 

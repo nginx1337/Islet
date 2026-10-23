@@ -3,19 +3,21 @@ import SwiftUI
 
 /// Every animation of the island in one place, so the feel can be tuned here and nowhere else.
 ///
-/// The shape moves with springs that settle without wobbling (a touch of bounce only when it grows),
-/// content just fades, and nothing blurs, glows or pulses.
+/// The shape moves with short springs that overshoot a little when it grows and settle cleanly when it
+/// shrinks, like the real Dynamic Island. Content just fades; nothing blurs, glows or pulses.
 enum IslandMotion {
     /// Compact or hidden → expanded.
-    static let grow = Animation.spring(duration: 0.40, bounce: 0.12)
+    static let grow = Animation.spring(duration: 0.46, bounce: 0.22)
     /// Expanded → compact, or the compact width changing.
-    static let settle = Animation.spring(duration: 0.32, bounce: 0)
+    static let settle = Animation.spring(duration: 0.38, bounce: 0.1)
     /// Hidden → shown.
-    static let appear = Animation.spring(duration: 0.38, bounce: 0.08)
+    static let appear = Animation.spring(duration: 0.46, bounce: 0.2)
     /// Shown → hidden.
-    static let disappear = Animation.spring(duration: 0.30, bounce: 0)
+    static let disappear = Animation.spring(duration: 0.32, bounce: 0)
     /// The second capsule coming and going.
-    static let satellite = Animation.spring(duration: 0.36, bounce: 0.06)
+    static let satellite = Animation.spring(duration: 0.46, bounce: 0.2)
+    /// The capsule's contents swapping (another activity, or buttons appearing).
+    static let swap = Animation.easeInOut(duration: 0.2)
     /// The compact title changing length.
     static let title = Animation.smooth(duration: 0.30)
     /// Button press feedback.

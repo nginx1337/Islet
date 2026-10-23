@@ -38,12 +38,13 @@ extension IslandRootView {
                     .frame(width: frame.width, height: frame.height)
                     .offset(x: frame.minX, y: frame.minY)
                     .transition(.asymmetric(
-                        insertion: .scale(scale: 0.85, anchor: .leading).combined(with: .opacity),
-                        removal: .opacity))
+                        insertion: .scale(scale: 0.5, anchor: .leading).combined(with: .opacity),
+                        removal: .scale(scale: 0.7, anchor: .leading).combined(with: .opacity)))
             }
         }
         .frame(width: model.layout.panelFrame.width, height: model.layout.panelFrame.height, alignment: .topLeading)
         .animation(IslandMotion.satellite, value: model.activities.current?.kind)
+        .animation(IslandMotion.satellite, value: model.satelliteHovering)
     }
 }
 
@@ -63,6 +64,9 @@ struct CompactMetrics {
         let h = frame.height
         art = max(14, min(h - 10, 24))
         switch layout.style {
+        case .notch where layout.isDrawnNotch:
+            ear = layout.compactEar
+            titleRect = layout.compactTitle ? CGRect(x: ear, y: 0, width: frame.width - 2 * ear, height: h) : nil
         case .notch:
             let side = max(0, (frame.width - layout.notchWidth) / 2)
             ear = min(side, layout.compactEar)

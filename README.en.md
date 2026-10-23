@@ -51,11 +51,13 @@ Requires macOS 27 and the Command Line Tools (Xcode is optional). No paid develo
 
 ```bash
 scripts/build-app.sh            # release → build/Islet.app
+scripts/install.sh              # build and install into /Applications, replacing the old version
+scripts/audit.sh                # security audit of the sources
 swift test                      # core unit tests
 scripts/test.sh                 # tests, app bundle and launch self-check
 ```
 
-Install: drag `build/Islet.app` into Applications and open it. The icon appears in the menu bar (there is no Dock icon). Settings are in that menu, or open Islet again from Finder.
+Install: `scripts/install.sh` builds the app, quits the running copy, moves the old version out of Applications into the Trash (so it can be put back), installs the new one and starts it. Settings are kept. By hand: drag `build/Islet.app` into Applications and open it. If a new copy starts while an old one is running, the old one quits by itself. The icon appears in the menu bar (there is no Dock icon). Settings are in that menu, or open Islet again from Finder.
 
 Self-check: `build/Islet.app/Contents/MacOS/Islet --self-check` starts the app, prints the data source, current track, screens and islands, and exits with 0 (OK), 2 (works only in fallback mode) or 1 (broken). It waits for the adapter's own check, so a blocked MediaRemote cannot pass as OK.
 

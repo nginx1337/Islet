@@ -179,17 +179,24 @@ struct SatelliteGeometryTests {
         isMain: true, statusBarThickness: 24, visibleTopInset: 30)
 
     @Test func capsuleFitsInThePanelInEveryState() {
+        let timer = ActivityContent.countdown(CountdownTimer(duration: 5, startingAt: Date()))
         for screen in [Self.macBook, Self.monitor] {
             for scale in [0.7, 1.0, 1.5] {
-                let settings = LayoutSettings(notchScale: scale, islandScale: scale, compactTitle: true)
-                let layout = IslandLayoutEngine.layout(for: screen, settings: settings)
-                let bounds = CGRect(origin: .zero, size: layout.panelFrame.size)
-                let width = SatellitePlacement.width(for: .countdown(CountdownTimer(duration: 5, startingAt: Date())), scale: layout.scale)
-                for shape in [layout.hidden, layout.compact, layout.expanded] {
-                    let frame = SatellitePlacement.frame(in: layout, main: shape, mainHidden: shape == layout.hidden, width: width)
-                    #expect(bounds.contains(frame), "\(screen.id) scale \(scale)")
-                    #expect(frame.height == layout.compact.frame.height)
-                    #expect(frame.minY == layout.compact.frame.minY)
+                for preference in IslandStylePreference.allCases {
+                    let settings = LayoutSettings(
+                        notchScale: scale, islandScale: scale, compactTitle: true, stylePreference: preference)
+                    let layout = IslandLayoutEngine.layout(for: screen, settings: settings)
+                    let bounds = CGRect(origin: .zero, size: layout.panelFrame.size)
+                    // The widest the capsule gets: a timer under the pointer.
+                    let width = SatellitePlacement.width(for: timer, hovering: true, scale: layout.scale)
+                    #expect(width > SatellitePlacement.width(for: timer, scale: layout.scale))
+                    for shape in [layout.hidden, layout.compact, layout.expanded] {
+                        let frame = SatellitePlacement.frame(
+                            in: layout, main: shape, mainHidden: shape == layout.hidden, width: width)
+                        #expect(bounds.contains(frame), "\(screen.id) \(preference) scale \(scale)")
+                        #expect(frame.height == layout.compact.frame.height)
+                        #expect(frame.minY == layout.compact.frame.minY)
+                    }
                 }
             }
         }

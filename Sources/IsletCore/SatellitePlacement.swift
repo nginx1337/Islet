@@ -7,20 +7,21 @@ public enum SatellitePlacement {
     /// Space between the island and the capsule.
     public static let gap: CGFloat = 8
     /// The widest capsule at scale 1; the panel reserves this much on both sides.
-    public static let maxWidth: CGFloat = 120
+    public static let maxWidth: CGFloat = 160
 
-    /// Width at scale 1 by content.
-    public static func baseWidth(for content: ActivityContent) -> CGFloat {
+    /// Width at scale 1 by content. A timer or stopwatch under the pointer widens to make room for its buttons.
+    public static func baseWidth(for content: ActivityContent, hovering: Bool = false) -> CGFloat {
         switch content {
-        case .countdown, .stopwatch: maxWidth
-        case .power: 84
-        case .headphones: 98
+        case .countdown(let timer): hovering && !timer.isFinished ? maxWidth : 104
+        case .stopwatch: hovering ? maxWidth : 104
+        case .power: 100
+        case .headphones: 112
         case .transfer: 92
         }
     }
 
-    public static func width(for content: ActivityContent, scale: CGFloat) -> CGFloat {
-        (baseWidth(for: content) * scale).rounded()
+    public static func width(for content: ActivityContent, hovering: Bool = false, scale: CGFloat) -> CGFloat {
+        (baseWidth(for: content, hovering: hovering) * scale).rounded()
     }
 
     /// Horizontal space the panel keeps free on each side for the capsule.
