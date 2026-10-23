@@ -1,3 +1,4 @@
+import IsletCore
 import SwiftUI
 
 /// Every animation of the island in one place, so the feel can be tuned here and nowhere else.
