@@ -47,6 +47,7 @@ struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
                 Text(styleNote).font(.caption).foregroundStyle(.secondary)
+                Toggle(tr("Тонкая обводка, как на iPhone", "Thin outline, as on the iPhone"), isOn: $settings.islandOutline)
                 Picker(tr("Показывать", "Show on"), selection: $settings.screenSelection) {
                     Text(tr("На всех экранах", "All displays")).tag(ScreenSelection.all)
                     Text(tr("Только на основном", "Primary display only")).tag(ScreenSelection.main)

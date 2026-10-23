@@ -100,11 +100,13 @@ public struct LayoutSettings: Equatable, Sendable {
     /// Show the title in the compact island (between artwork and equaliser).
     public var compactTitle: Bool = false
     public var stylePreference: IslandStylePreference = .automatic
+    /// A faint light edge around the island, like the iPhone's over a dark background.
+    public var outline: Bool = true
 
     public init(
         selection: ScreenSelection = .all, placement: MonitorPlacement = .overMenuBar,
         verticalOffset: CGFloat = 0, notchScale: CGFloat = 1, islandScale: CGFloat = 1,
-        compactTitle: Bool = false, stylePreference: IslandStylePreference = .automatic
+        compactTitle: Bool = false, stylePreference: IslandStylePreference = .automatic, outline: Bool = true
     ) {
         self.selection = selection
         self.placement = placement
@@ -113,6 +115,7 @@ public struct LayoutSettings: Equatable, Sendable {
         self.islandScale = islandScale
         self.compactTitle = compactTitle
         self.stylePreference = stylePreference
+        self.outline = outline
     }
 }
 
@@ -178,6 +181,8 @@ public struct IslandLayout: Equatable, Sendable {
     /// A notch drawn on a screen that has none: nothing is hidden in the middle, so it is laid out
     /// like a compact pill that hangs from the top edge.
     public var isDrawnNotch: Bool = false
+    /// Draw the faint light edge.
+    public var outline: Bool = true
     /// Width of the notch itself; compact content goes into the "ears" on its sides.
     public var notchWidth: CGFloat
     public var scale: CGFloat
@@ -284,6 +289,7 @@ public enum IslandLayoutEngine {
             floatingLayout(screen, settings: settings, scale: clampScale(settings.islandScale))
         }
         layout.compactTitle = settings.compactTitle
+        layout.outline = settings.outline
         return layout
     }
 
@@ -298,7 +304,8 @@ public enum IslandLayoutEngine {
     ) -> IslandLayout {
         let px = PixelGrid(scale: screen.backingScale)
         let h = px.round(notch.height)
-        let baseEar = px.round(max(h, 24) * 1.15 * s)
+        // A drawn notch is a pill: each end is as wide as it is tall, with the artwork or the bars at its centre.
+        let baseEar = isVirtual ? h : px.round(max(h, 24) * 1.15 * s)
         let flare = px.round(Metrics.notchTopFlare)
 
         // Widths of the compact shape: `compactBase` without a title, `compactWidest` with the longest title.
@@ -399,7 +406,7 @@ public enum IslandLayoutEngine {
             screenID: screen.id, style: .floating, panelFrame: panelFrame,
             hidden: hidden, compact: compact, expanded: expanded,
             contentTopInset: 0, notchWidth: 0, scale: s,
-            compactBaseWidth: px.round(Metrics.floatingCompactWidth * s), compactEar: compactHeight + 6)
+            compactBaseWidth: px.round(Metrics.floatingCompactWidth * s), compactEar: compactHeight)
     }
 }
 

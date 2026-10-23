@@ -12,6 +12,8 @@ struct SatelliteView: View {
     let style: IslandStyle
     let scale: CGFloat
     let height: CGFloat
+    /// The faint light edge, as on the main island.
+    var outline = true
 
     /// The leading glyph sits in a circle as tall as the capsule, so it is concentric with the rounded end.
     private var slot: CGFloat { height }
@@ -23,6 +25,10 @@ struct SatelliteView: View {
         ZStack {
             Capsule(style: .continuous)
                 .fill(.black)
+                .overlay {
+                    Capsule(style: .continuous)
+                        .strokeBorder(Color.white.opacity(outline ? IslandOutline.opacity : 0), lineWidth: IslandOutline.width)
+                }
                 .shadow(color: .black.opacity(style == .floating ? 0.3 : 0), radius: 10, y: 4)
             HStack(spacing: 0) {
                 leading

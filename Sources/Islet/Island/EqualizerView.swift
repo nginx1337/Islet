@@ -1,7 +1,9 @@
 import AppKit
+import IsletCore
 import SwiftUI
 
-/// Four bars: bass, low mids, mids, highs. With system audio access they follow the real sound
+/// Six thin bars, bass on the left and highs on the right (``EqualizerBars`` spreads the four
+/// analysed bands over them). With system audio access they follow the real sound
 /// (``AudioLevelMonitor``); without it they bounce decoratively. Core Animation layers either way.
 struct EqualizerView: View {
     var color: NSColor
@@ -12,10 +14,10 @@ struct EqualizerView: View {
         if staticBars {
             // Offscreen renders cannot show Core Animation layers: draw a still frame instead.
             GeometryReader { geometry in
-                let heights: [CGFloat] = active ? [0.55, 1, 0.4, 0.75] : [0.35, 0.55, 0.3, 0.45]
-                let width = geometry.size.width / 7
-                HStack(spacing: width) {
-                    ForEach(0..<4, id: \.self) { i in
+                let heights: [CGFloat] = active ? [0.45, 0.8, 1, 0.6, 0.85, 0.4] : EqualizerNSView.rest
+                let width = EqualizerNSView.barWidth(for: geometry.size.width)
+                HStack(spacing: EqualizerNSView.spacing(for: geometry.size.width)) {
+                    ForEach(0..<EqualizerBars.count, id: \.self) { i in
                         Capsule().fill(Color(color))
                             .frame(width: width, height: geometry.size.height * heights[i])
                     }
@@ -46,13 +48,26 @@ struct EqualizerLayerView: NSViewRepresentable {
 }
 
 final class EqualizerNSView: NSView {
-    private let bars: [CALayer] = (0..<4).map { _ in CALayer() }
+    private let bars: [CALayer] = (0..<EqualizerBars.count).map { _ in CALayer() }
     private var active = false
     private var live = false
     private var color = NSColor.white
     /// Rest heights (fraction of full height) and periods, so the bars do not move in step.
-    private let rest: [CGFloat] = [0.35, 0.55, 0.3, 0.45]
-    private let periods: [CFTimeInterval] = [0.42, 0.55, 0.37, 0.49]
+    static let rest: [CGFloat] = [0.3, 0.5, 0.65, 0.4, 0.55, 0.3]
+    private let rest = EqualizerNSView.rest
+    private let periods: [CFTimeInterval] = [0.42, 0.55, 0.37, 0.49, 0.44, 0.52]
+    /// Gap between bars as a fraction of a bar's width (the iPhone's bars are about this airy).
+    private static let gapRatio: CGFloat = 0.8
+
+    static func barWidth(for width: CGFloat) -> CGFloat {
+        let n = CGFloat(EqualizerBars.count)
+        return max(1.5, width / (n + (n - 1) * gapRatio))
+    }
+
+    static func spacing(for width: CGFloat) -> CGFloat {
+        let n = CGFloat(EqualizerBars.count)
+        return max(0, (width - barWidth(for: width) * n) / (n - 1))
+    }
     private static let minimum: CGFloat = 0.14
 
     override init(frame: NSRect) {
@@ -78,9 +93,8 @@ final class EqualizerNSView: NSView {
         super.layout()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        let n = CGFloat(bars.count)
-        let width = max(1.5, bounds.width / (n * 2 - 1))
-        let spacing = (bounds.width - width * n) / (n - 1)
+        let width = Self.barWidth(for: bounds.width)
+        let spacing = Self.spacing(for: bounds.width)
         for (i, bar) in bars.enumerated() {
             bar.bounds = CGRect(x: 0, y: 0, width: width, height: bounds.height)
             bar.position = CGPoint(x: width / 2 + CGFloat(i) * (width + spacing), y: bounds.midY)
@@ -112,9 +126,11 @@ final class EqualizerNSView: NSView {
         restart()
     }
 
-    /// Real levels, 0…1 per bar (bass first). Each update glides for one frame, so it looks continuous.
+    /// Real levels, 0…1 per band (bass first), spread over the bars. Each update glides for one frame,
+    /// so it looks continuous.
     func apply(levels: [Float]) {
         guard live, active else { return }
+        let levels = EqualizerBars.spread(levels, to: bars.count)
         CATransaction.begin()
         CATransaction.setAnimationDuration(1.0 / 30)
         CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .linear))

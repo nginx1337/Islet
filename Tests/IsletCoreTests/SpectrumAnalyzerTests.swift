@@ -65,3 +65,30 @@ struct SpectrumAnalyzerTests {
         #expect(analyzer.process([Float](repeating: 0.1, count: 1)))
     }
 }
+
+struct EqualizerBarsTests {
+    @Test func spreadsFourBandsOverSixBars() {
+        let bars = EqualizerBars.spread([1, 0, 0, 0], to: 6)
+        #expect(bars.count == 6)
+        #expect(bars[0] == 1, "the first bar is the bass band")
+        #expect(bars[1] > bars[2], "bass fades out towards the right")
+        #expect(bars[5] == 0)
+        let high = EqualizerBars.spread([0, 0, 0, 1], to: 6)
+        #expect(high[5] == 1 && high[0] == 0)
+    }
+
+    @Test func endsMatchTheBandsAndValuesStayInRange() {
+        let levels: [Float] = [0.2, 0.9, 0.4, 0.7]
+        let bars = EqualizerBars.spread(levels)
+        #expect(bars.first == 0.2 && bars.last == 0.7)
+        #expect(bars.allSatisfy { $0 >= 0 && $0 <= 1 })
+        #expect(EqualizerBars.spread([3, -1, .nan, 0.5]).allSatisfy { $0 >= 0 && $0 <= 1 })
+    }
+
+    @Test func degenerateInputs() {
+        #expect(EqualizerBars.spread([], to: 6) == [0, 0, 0, 0, 0, 0])
+        #expect(EqualizerBars.spread([0.5], to: 3) == [0.5, 0.5, 0.5])
+        #expect(EqualizerBars.spread([0.2, 0.4], to: 0).isEmpty)
+        #expect(abs((EqualizerBars.spread([0.2, 0.4], to: 1).first ?? 0) - 0.3) < 0.0001)
+    }
+}

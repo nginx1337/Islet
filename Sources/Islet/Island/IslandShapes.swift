@@ -5,6 +5,8 @@ import SwiftUI
 nonisolated struct NotchShape: Shape {
     var flare: CGFloat
     var bottomRadius: CGFloat
+    /// False leaves out the top edge (for an outline that should not run along the screen edge).
+    var closed = true
 
     var animatableData: AnimatablePair<CGFloat, CGFloat> {
         get { AnimatablePair(flare, bottomRadius) }
@@ -30,7 +32,7 @@ nonisolated struct NotchShape: Shape {
         path.addLine(to: CGPoint(x: right, y: rect.minY + f))
         // Right flare back up to the edge.
         path.addQuadCurve(to: CGPoint(x: rect.maxX, y: rect.minY), control: CGPoint(x: right, y: rect.minY))
-        path.closeSubpath()
+        if closed { path.closeSubpath() }
         return path
     }
 }

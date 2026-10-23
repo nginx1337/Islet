@@ -22,6 +22,7 @@ final class AppSettings {
     var tintFromArtwork: Bool { didSet { save(tintFromArtwork, "tintFromArtwork") } }
     var showInFullScreen: Bool { didSet { save(showInFullScreen, "showInFullScreen") } }
     var compactTitle: Bool { didSet { save(compactTitle, "compactTitle") } }
+    var islandOutline: Bool { didSet { save(islandOutline, "islandOutline") } }
     var liveEqualizer: Bool { didSet { save(liveEqualizer, "liveEqualizer") } }
     var showPowerActivity: Bool { didSet { save(showPowerActivity, "showPowerActivity") } }
     var showHeadphonesActivity: Bool { didSet { save(showHeadphonesActivity, "showHeadphonesActivity") } }
@@ -59,6 +60,7 @@ final class AppSettings {
         tintFromArtwork = defaults.object(forKey: "tintFromArtwork") as? Bool ?? true
         showInFullScreen = defaults.object(forKey: "showInFullScreen") as? Bool ?? false
         compactTitle = defaults.object(forKey: "compactTitle") as? Bool ?? false
+        islandOutline = defaults.object(forKey: "islandOutline") as? Bool ?? true
         liveEqualizer = defaults.object(forKey: "liveEqualizer") as? Bool ?? true
         showPowerActivity = defaults.object(forKey: "showPowerActivity") as? Bool ?? true
         showHeadphonesActivity = defaults.object(forKey: "showHeadphonesActivity") as? Bool ?? true
@@ -77,7 +79,7 @@ final class AppSettings {
         LayoutSettings(
             selection: screenSelection, placement: monitorPlacement, verticalOffset: verticalOffset,
             notchScale: notchScale, islandScale: islandScale, compactTitle: compactTitle,
-            stylePreference: islandStyle)
+            stylePreference: islandStyle, outline: islandOutline)
     }
 
     var behavior: IslandBehavior {
