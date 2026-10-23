@@ -50,11 +50,11 @@ final class AppSettings {
         islandStyle = defaults.string(forKey: "islandStyle").flatMap(IslandStylePreference.init) ?? .automatic
         screenSelection = defaults.string(forKey: "screenSelection").flatMap(ScreenSelection.init) ?? .all
         monitorPlacement = defaults.string(forKey: "monitorPlacement").flatMap(MonitorPlacement.init) ?? .overMenuBar
-        verticalOffset = defaults.object(forKey: "verticalOffset") as? Double ?? 0
-        notchScale = defaults.object(forKey: "notchScale") as? Double ?? 1
-        islandScale = defaults.object(forKey: "islandScale") as? Double ?? 1
+        verticalOffset = Self.number(defaults, "verticalOffset", default: 0, in: -6...40)
+        notchScale = Self.number(defaults, "notchScale", default: 1, in: 0.8...1.3)
+        islandScale = Self.number(defaults, "islandScale", default: 1, in: 0.8...1.3)
         autoHideEnabled = defaults.object(forKey: "autoHideEnabled") as? Bool ?? true
-        autoHideSeconds = defaults.object(forKey: "autoHideSeconds") as? Double ?? 15
+        autoHideSeconds = Self.number(defaults, "autoHideSeconds", default: 15, in: 5...300)
         expandOnHover = defaults.object(forKey: "expandOnHover") as? Bool ?? true
         expandOnTrackChange = defaults.object(forKey: "expandOnTrackChange") as? Bool ?? true
         tintFromArtwork = defaults.object(forKey: "tintFromArtwork") as? Bool ?? true
@@ -88,6 +88,14 @@ final class AppSettings {
         b.expandOnHover = expandOnHover
         b.expandOnTrackChange = expandOnTrackChange
         return b
+    }
+
+    /// A number from the defaults, kept inside the range the settings window allows: the defaults
+    /// can be edited from outside the app (`defaults write`), and NaN or a huge value must not move
+    /// the island off screen or break its timers.
+    private static func number(_ defaults: UserDefaults, _ key: String, default value: Double, in range: ClosedRange<Double>) -> Double {
+        guard let stored = defaults.object(forKey: key) as? Double, stored.isFinite else { return value }
+        return min(max(stored, range.lowerBound), range.upperBound)
     }
 
     private func save(_ value: Any, _ key: String) {

@@ -22,11 +22,6 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks" "$APP/Contents/Helpers"
 cp "$BIN/Islet" "$APP/Contents/MacOS/Islet"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
-# The commit this build is made from, for "Check for updates" (a ZIP download has no git history).
-COMMIT="${ISLET_COMMIT:-$(git rev-parse --verify HEAD 2>/dev/null || true)}"
-if [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
-  /usr/libexec/PlistBuddy -c "Add :IsletCommit string $COMMIT" "$APP/Contents/Info.plist"
-fi
 cp build/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cp -R Resources/en.lproj Resources/ru.lproj "$APP/Contents/Resources/"
 # The adapter: script and framework for /usr/bin/perl, plus the test client for the health check.
@@ -36,9 +31,6 @@ cp build/adapter/MediaRemoteAdapterTestClient "$APP/Contents/Helpers/"
 mkdir -p "$APP/Contents/Resources/Licenses"
 cp LICENSE "$APP/Contents/Resources/Licenses/Islet-LICENSE.txt"
 cp Vendor/mediaremote-adapter/LICENSE "$APP/Contents/Resources/Licenses/mediaremote-adapter-LICENSE.txt"
-# The update script that Settings → "Update…" opens in Terminal.
-cp scripts/update.sh "$APP/Contents/Resources/update.command"
-chmod +x "$APP/Contents/Resources/update.command"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
 if [[ "$CONFIG" == "release" ]]; then

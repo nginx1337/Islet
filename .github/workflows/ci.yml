@@ -38,6 +38,13 @@ jobs:
             echo "Debug symbols with source paths found in the release binary" >&2
             exit 1
           fi
+      - name: Hardened runtime and no debugging entitlements
+        run: |
+          codesign -d --verbose=2 build/Islet.app 2>&1 | grep -E "flags=.*runtime"
+          if codesign -d --entitlements - build/Islet.app 2>/dev/null | grep -E "get-task-allow|disable-library-validation|allow-jit|allow-unsigned-executable-memory|allow-dyld-environment-variables"; then
+            echo "The release build has a debugging or code-loading entitlement" >&2
+            exit 1
+          fi
       - name: Bundle contains the adapter and its license
         run: |
           test -f build/Islet.app/Contents/Resources/mediaremote-adapter.pl
