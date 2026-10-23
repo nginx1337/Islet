@@ -195,13 +195,14 @@ public struct IslandLayout: Equatable, Sendable {
     /// `compact` itself is the widest it gets (long titles scroll inside it).
     public func compact(fittingTitle titleWidth: CGFloat?) -> ShapeSpec {
         guard compactTitle, let titleWidth, titleWidth > 0, compactBaseWidth > 0 else { return compact }
-        // Room on both sides of the title, so it never touches the artwork or the bars.
-        let padding: CGFloat = 2 * Self.titleInset * scale + 12 * scale
+        let padding: CGFloat = 12 * scale
+        // Between the artwork and the bars the title also keeps a gap on both sides, so it never touches them.
+        let between = padding + 2 * Self.titleInset * scale
         let width: CGFloat = switch style {
         case .floating:
-            max(compactBaseWidth, 2 * compactEar + titleWidth + padding)
+            max(compactBaseWidth, 2 * compactEar + titleWidth + between)
         case .notch where isDrawnNotch:
-            max(compactBaseWidth, 2 * compactEar + titleWidth + padding)
+            max(compactBaseWidth, 2 * compactEar + titleWidth + between)
         case .notch:
             // The title sits in the left ear; both ears grow by the same amount to stay centred on the notch.
             compactBaseWidth + 2 * max(0, titleWidth + padding)

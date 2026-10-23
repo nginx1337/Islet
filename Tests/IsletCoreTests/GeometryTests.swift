@@ -155,7 +155,7 @@ struct GeometryTests {
         let short = layout.compact(fittingTitle: 40)
         #expect(short.frame.width == 150, "never narrower than without a title")
         let medium = layout.compact(fittingTitle: 140)
-        #expect(medium.frame.width == 224, "two ears of 36 + title 140 + padding 12")
+        #expect(medium.frame.width == 236, "two ears of 36 + title 140 + padding 12 + a 6 pt gap on each side")
         #expect(medium.frame.midX == layout.compact.frame.midX, "stays centred")
         #expect(layout.compact(fittingTitle: 900) == layout.compact, "long titles get the full width and scroll")
         #expect(layout.compact(fittingTitle: nil) == layout.compact)
