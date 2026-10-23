@@ -188,11 +188,15 @@ public struct IslandLayout: Equatable, Sendable {
     /// Width of the part of each ear that holds the artwork (left) or the bars (right).
     public var compactEar: CGFloat = 0
 
+    /// Space between the title and the artwork on one side, the bars on the other (at scale 1).
+    public static let titleInset: CGFloat = 6
+
     /// The compact shape narrowed to the title, so a short title leaves no empty gap.
     /// `compact` itself is the widest it gets (long titles scroll inside it).
     public func compact(fittingTitle titleWidth: CGFloat?) -> ShapeSpec {
         guard compactTitle, let titleWidth, titleWidth > 0, compactBaseWidth > 0 else { return compact }
-        let padding: CGFloat = 12 * scale
+        // Room on both sides of the title, so it never touches the artwork or the bars.
+        let padding: CGFloat = 2 * Self.titleInset * scale + 12 * scale
         let width: CGFloat = switch style {
         case .floating:
             max(compactBaseWidth, 2 * compactEar + titleWidth + padding)

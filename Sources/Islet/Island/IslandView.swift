@@ -34,7 +34,7 @@ extension IslandRootView {
         ZStack(alignment: .topLeading) {
             if let activity = model.activities.current, let frame = model.satelliteFrame {
                 SatelliteView(activity: activity, activities: model.activities, hovering: model.satelliteHovering,
-                              style: model.layout.style, scale: model.layout.scale)
+                              style: model.layout.style, scale: model.layout.scale, height: frame.height)
                     .frame(width: frame.width, height: frame.height)
                     .offset(x: frame.minX, y: frame.minY)
                     .transition(.asymmetric(
@@ -62,11 +62,12 @@ struct CompactMetrics {
     init(layout: IslandLayout, frame: CGRect) {
         size = frame.size
         let h = frame.height
+        let inset = IslandLayout.titleInset * layout.scale
         art = max(14, min(h - 10, 24))
         switch layout.style {
         case .notch where layout.isDrawnNotch:
             ear = layout.compactEar
-            titleRect = layout.compactTitle ? CGRect(x: ear, y: 0, width: frame.width - 2 * ear, height: h) : nil
+            titleRect = layout.compactTitle ? CGRect(x: ear + inset, y: 0, width: max(0, frame.width - 2 * (ear + inset)), height: h) : nil
         case .notch:
             let side = max(0, (frame.width - layout.notchWidth) / 2)
             ear = min(side, layout.compactEar)
@@ -74,7 +75,7 @@ struct CompactMetrics {
                 ? CGRect(x: ear, y: 0, width: side - ear - 8, height: h) : nil
         case .floating:
             ear = layout.compactEar
-            titleRect = layout.compactTitle ? CGRect(x: ear, y: 0, width: frame.width - 2 * ear, height: h) : nil
+            titleRect = layout.compactTitle ? CGRect(x: ear + inset, y: 0, width: max(0, frame.width - 2 * (ear + inset)), height: h) : nil
         }
         titleFontSize = IslandViewModel.compactTitleFontSize(for: layout)
         artCenter = CGPoint(x: ear / 2, y: h / 2)

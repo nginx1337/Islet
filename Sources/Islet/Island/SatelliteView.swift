@@ -11,17 +11,27 @@ struct SatelliteView: View {
     let hovering: Bool
     let style: IslandStyle
     let scale: CGFloat
+    let height: CGFloat
+
+    /// The leading glyph sits in a circle as tall as the capsule, so it is concentric with the rounded end.
+    private var slot: CGFloat { height }
+    /// Round buttons: concentric with the capsule's end, with an even ring of black around them.
+    private var button: CGFloat { max(16, height - 8) }
+    private var glyphSize: CGFloat { height * 0.46 }
 
     var body: some View {
-        let s = scale
         ZStack {
             Capsule(style: .continuous)
                 .fill(.black)
                 .shadow(color: .black.opacity(style == .floating ? 0.3 : 0), radius: 10, y: 4)
-            content(scale: s)
-                .id(activity.kind)
-                .transition(.opacity)
-                .padding(.horizontal, 11 * s)
+            HStack(spacing: 0) {
+                leading
+                Spacer(minLength: 6 * scale)
+                trailing
+                    .padding(.trailing, height * 0.4)
+            }
+            .id(activity.kind)
+            .transition(.opacity)
         }
         .animation(IslandMotion.swap, value: activity.kind)
         .contentShape(Capsule())
@@ -31,91 +41,104 @@ struct SatelliteView: View {
         .accessibilityAddTraits(.isButton)
     }
 
+    // MARK: Leading: glyph, ring or buttons
+
     @ViewBuilder
-    private func content(scale s: CGFloat) -> some View {
+    private var leading: some View {
         switch activity.content {
         case .countdown(let timer):
-            HStack(spacing: 8 * s) {
-                leading(symbol: timer.isFinished ? "bell.fill" : "timer", tint: .orange, scale: s,
-                        controls: !timer.isFinished, running: timer.isRunning)
-                Spacer(minLength: 0)
-                if timer.isFinished {
-                    value(tr("Готово", "Done"), tint: .orange, scale: s)
-                } else {
-                    ActivityClock(running: timer.isRunning, scale: s, tint: .orange) { date in
-                        TimeFormat.clock(timer.remaining(at: date), roundingUp: true)
-                    }
+            if timer.isFinished {
+                glyph("bell.fill", tint: .orange)
+            } else {
+                withButtons(running: timer.isRunning) {
+                    CountdownRing(timer: timer, tint: .orange, lineWidth: 2.5 * scale)
+                        .frame(width: glyphSize, height: glyphSize)
                 }
             }
         case .stopwatch(let watch):
-            HStack(spacing: 8 * s) {
-                leading(symbol: "stopwatch.fill", tint: .orange, scale: s, controls: true, running: watch.isRunning)
-                Spacer(minLength: 0)
-                ActivityClock(running: watch.isRunning, scale: s, tint: .orange) { date in
-                    TimeFormat.clock(watch.elapsed(at: date))
-                }
+            withButtons(running: watch.isRunning) {
+                Image(systemName: "stopwatch.fill")
+                    .font(.system(size: glyphSize * 0.95, weight: .semibold))
+                    .foregroundStyle(.orange)
             }
         case .power(let info):
-            HStack(spacing: 8 * s) {
-                glyph(powerSymbol(info), tint: powerTint(info), scale: s)
-                Spacer(minLength: 0)
-                value("\(info.percent)%", tint: powerTint(info), scale: s)
-            }
-        case .headphones(let name):
-            HStack(spacing: 8 * s) {
-                glyph("headphones", tint: .white, scale: s)
-                Spacer(minLength: 0)
-                Text(name.isEmpty ? tr("Наушники", "Headphones") : name)
-                    .font(.system(size: 11.5 * s, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.7))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
+            glyph(powerSymbol(info), tint: powerTint(info))
+        case .headphones:
+            glyph("headphones", tint: .white)
         case .transfer(let info):
-            HStack(spacing: 8 * s) {
-                ProgressRing(fraction: info.fraction, tint: .blue)
-                    .frame(width: 16 * s, height: 16 * s)
-                Spacer(minLength: 0)
-                value(info.fraction.map { "\(Int(($0 * 100).rounded()))%" } ?? "…", tint: .white, scale: s)
-            }
+            ProgressRing(fraction: info.fraction, tint: .blue, lineWidth: 2.5 * scale)
+                .frame(width: glyphSize, height: glyphSize)
+                .frame(width: slot, height: slot)
         }
     }
 
-    private func glyph(_ symbol: String, tint: Color, scale s: CGFloat) -> some View {
+    private func glyph(_ symbol: String, tint: Color) -> some View {
         Image(systemName: symbol)
-            .font(.system(size: 14 * s, weight: .semibold))
-            .symbolRenderingMode(.hierarchical)
+            .font(.system(size: glyphSize * 0.9, weight: .semibold))
+            .symbolRenderingMode(.monochrome)
             .foregroundStyle(tint)
+            .frame(width: slot, height: slot)
     }
 
-    private func value(_ text: String, tint: Color, scale s: CGFloat) -> some View {
+    /// The glyph in its slot; under the pointer it gives way to ✕ and pause/play.
+    private func withButtons<Glyph: View>(running: Bool, @ViewBuilder glyph: () -> Glyph) -> some View {
+        ZStack(alignment: .leading) {
+            glyph()
+                .frame(width: slot, height: slot)
+                .opacity(hovering ? 0 : 1)
+            HStack(spacing: 5 * scale) {
+                SatelliteButton(symbol: "xmark", glyph: .white, fill: .white.opacity(0.22), size: button) {
+                    activities.dismissCurrent()
+                }
+                SatelliteButton(symbol: running ? "pause.fill" : "play.fill", glyph: .black, fill: .orange, size: button) {
+                    activities.primaryAction()
+                }
+            }
+            .padding(.leading, (height - button) / 2)
+            .opacity(hovering ? 1 : 0)
+            .allowsHitTesting(hovering)
+        }
+        .animation(IslandMotion.swap, value: hovering)
+    }
+
+    // MARK: Trailing: the value
+
+    @ViewBuilder
+    private var trailing: some View {
+        switch activity.content {
+        case .countdown(let timer):
+            if timer.isFinished {
+                value(tr("Готово", "Done"), tint: .orange)
+            } else {
+                ActivityClock(running: timer.isRunning, size: valueSize, tint: .orange) { date in
+                    TimeFormat.clock(timer.remaining(at: date), roundingUp: true)
+                }
+            }
+        case .stopwatch(let watch):
+            ActivityClock(running: watch.isRunning, size: valueSize, tint: .orange) { date in
+                TimeFormat.clock(watch.elapsed(at: date))
+            }
+        case .power(let info):
+            value("\(info.percent)%", tint: powerTint(info))
+        case .headphones(let name):
+            Text(name.isEmpty ? tr("Наушники", "Headphones") : name)
+                .font(.system(size: valueSize * 0.85, weight: .medium))
+                .foregroundStyle(.white.opacity(0.75))
+                .lineLimit(1)
+                .truncationMode(.tail)
+        case .transfer(let info):
+            value(info.fraction.map { "\(Int(($0 * 100).rounded()))%" } ?? "…", tint: .white)
+        }
+    }
+
+    private var valueSize: CGFloat { max(11, height * 0.47) }
+
+    private func value(_ text: String, tint: Color) -> some View {
         Text(text)
-            .font(.system(size: 14 * s, weight: .semibold).monospacedDigit())
+            .font(.system(size: valueSize, weight: .semibold).monospacedDigit())
             .foregroundStyle(tint)
             .lineLimit(1)
             .fixedSize()
-    }
-
-    /// The icon, and on top of it the two round buttons that fade in when the capsule widens.
-    private func leading(symbol: String, tint: Color, scale s: CGFloat, controls: Bool, running: Bool) -> some View {
-        let showButtons = controls && hovering
-        return ZStack(alignment: .leading) {
-            glyph(symbol, tint: tint, scale: s)
-                .opacity(showButtons ? 0 : 1)
-            if controls {
-                HStack(spacing: 6 * s) {
-                    SatelliteButton(symbol: "xmark", glyph: .white, fill: .white.opacity(0.22), scale: s) {
-                        activities.dismissCurrent()
-                    }
-                    SatelliteButton(symbol: running ? "pause.fill" : "play.fill", glyph: .black, fill: tint, scale: s) {
-                        activities.primaryAction()
-                    }
-                }
-                .opacity(showButtons ? 1 : 0)
-                .allowsHitTesting(showButtons)
-            }
-        }
-        .animation(IslandMotion.swap, value: showButtons)
     }
 
     private func powerSymbol(_ info: PowerInfo) -> String {
@@ -162,17 +185,39 @@ struct SatelliteView: View {
 /// A time that redraws four times a second, and only while it runs and is on screen (a paused one is drawn once).
 private struct ActivityClock: View {
     let running: Bool
-    let scale: CGFloat
+    let size: CGFloat
     let tint: Color
     let text: (Date) -> String
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 0.25, paused: !running)) { context in
             Text(text(context.date))
-                .font(.system(size: 14 * scale, weight: .semibold).monospacedDigit())
+                .font(.system(size: size, weight: .semibold).monospacedDigit())
                 .foregroundStyle(tint)
                 .lineLimit(1)
                 .fixedSize()
+        }
+    }
+}
+
+/// The ring of the iPhone timer: full at the start, running out clockwise.
+private struct CountdownRing: View {
+    let timer: CountdownTimer
+    let tint: Color
+    let lineWidth: CGFloat
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 0.25, paused: !timer.isRunning)) { context in
+            let left = timer.fractionLeft(at: context.date)
+            ZStack {
+                Circle().stroke(tint.opacity(0.28), lineWidth: lineWidth)
+                Circle()
+                    .trim(from: 1 - left, to: 1)
+                    .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.linear(duration: 0.25), value: left)
+            }
+            .padding(lineWidth / 2)
         }
     }
 }
@@ -182,15 +227,15 @@ private struct SatelliteButton: View {
     let symbol: String
     let glyph: Color
     let fill: Color
-    let scale: CGFloat
+    let size: CGFloat
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 10 * scale, weight: .bold))
+                .font(.system(size: size * 0.42, weight: .bold))
                 .foregroundStyle(glyph)
-                .frame(width: 22 * scale, height: 22 * scale)
+                .frame(width: size, height: size)
                 .background(Circle().fill(fill))
                 .contentShape(Circle())
         }
@@ -202,15 +247,17 @@ private struct SatelliteButton: View {
 private struct ProgressRing: View {
     let fraction: Double?
     let tint: Color
+    let lineWidth: CGFloat
 
     var body: some View {
         ZStack {
-            Circle().stroke(.white.opacity(0.2), lineWidth: 2.5)
+            Circle().stroke(tint.opacity(0.28), lineWidth: lineWidth)
             Circle()
                 .trim(from: 0, to: max(0.04, fraction ?? 0.25))
-                .stroke(tint, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .animation(.easeOut(duration: 0.4), value: fraction)
         }
+        .padding(lineWidth / 2)
     }
 }
