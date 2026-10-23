@@ -5,10 +5,15 @@ import IsletCore
 final class StatusMenuController: NSObject, NSMenuDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let media: NowPlayingModel
+    private let activities: ActivityModel
     private let openSettings: () -> Void
 
-    init(media: NowPlayingModel, openSettings: @escaping () -> Void) {
+    /// Timer lengths in minutes.
+    private static let timerChoices: [Double] = [1, 5, 10, 15, 25, 30, 45, 60]
+
+    init(media: NowPlayingModel, activities: ActivityModel, openSettings: @escaping () -> Void) {
         self.media = media
+        self.activities = activities
         self.openSettings = openSettings
         super.init()
         if let button = item.button {
@@ -47,12 +52,63 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             menu.addItem(note)
         }
         menu.addItem(.separator())
+        addTimerItems(to: menu)
+        menu.addItem(.separator())
         let settings = NSMenuItem(title: tr("Настройки…", "Settings…"), action: #selector(showSettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
         menu.addItem(.separator())
         let quit = NSMenuItem(title: tr("Выйти из Islet", "Quit Islet"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quit)
+    }
+
+    private func addTimerItems(to menu: NSMenu) {
+        let timerItem = NSMenuItem(title: tr("Таймер", "Timer"), action: nil, keyEquivalent: "")
+        let submenu = NSMenu()
+        for minutes in Self.timerChoices {
+            let item = NSMenuItem(
+                title: tr("\(Int(minutes)) мин", "\(Int(minutes)) min"),
+                action: #selector(startTimer(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = minutes
+            submenu.addItem(item)
+        }
+        if activities.hasTimer {
+            submenu.addItem(.separator())
+            let cancel = NSMenuItem(title: tr("Отменить таймер", "Cancel timer"), action: #selector(cancelTimer), keyEquivalent: "")
+            cancel.target = self
+            submenu.addItem(cancel)
+        }
+        timerItem.submenu = submenu
+        menu.addItem(timerItem)
+
+        let watch = NSMenuItem(
+            title: activities.hasStopwatch ? tr("Сбросить секундомер", "Reset stopwatch") : tr("Секундомер", "Stopwatch"),
+            action: #selector(startStopwatch), keyEquivalent: "")
+        watch.target = self
+        menu.addItem(watch)
+        if activities.hasStopwatch {
+            let stop = NSMenuItem(title: tr("Убрать секундомер", "Remove stopwatch"), action: #selector(removeStopwatch), keyEquivalent: "")
+            stop.target = self
+            menu.addItem(stop)
+        }
+    }
+
+    @objc private func startTimer(_ sender: NSMenuItem) {
+        guard let minutes = sender.representedObject as? Double else { return }
+        activities.startTimer(minutes: minutes)
+    }
+
+    @objc private func cancelTimer() {
+        activities.dismiss(.timer)
+    }
+
+    @objc private func startStopwatch() {
+        activities.startStopwatch()
+    }
+
+    @objc private func removeStopwatch() {
+        activities.dismiss(.stopwatch)
     }
 
     @objc private func togglePlayback() {

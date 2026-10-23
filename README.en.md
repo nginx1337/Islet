@@ -9,7 +9,7 @@ On a MacBook the island lives in the notch and grows out of it. On an external m
 
 [Русская версия](README.md)
 
-<img src="docs/overview.png" width="100%" alt="Islet: Swift 6, SwiftUI, Core Animation, Core Audio. About 5,900 lines, no telemetry, 95 tests, 0% idle CPU. Hover to expand; the bars follow the real sound; click the title to open the player; ⌃⌥⌘N expands and collapses.">
+<img src="docs/overview.png" width="100%" alt="Islet: Swift 6, SwiftUI, Core Animation, Core Audio. About 7,500 lines, no telemetry, 119 tests, 0% idle CPU. Hover to expand; the bars follow the real sound; click the title to open the player; ⌃⌥⌘N expands and collapses.">
 
 | In the MacBook notch | On an external monitor |
 |---|---|
@@ -21,7 +21,7 @@ On a MacBook the island lives in the notch and grows out of it. On an external m
 
 - **Nothing playing**: hidden. In the notch it matches the notch and is invisible; on a monitor it shrinks to a point and fades out.
 - **Playing**: compact, with artwork and equaliser. The four bars show the Mac's real sound: bass, low mids, mids, highs. Without System Audio Recording permission they just animate.
-- **Title in the compact island** (a setting): between the artwork and the bars, tinted from the artwork. A long title scrolls and blurs out at the edges.
+- **Title in the compact island** (a setting): between the artwork and the bars, tinted from the artwork. A long title scrolls and fades out at the edges.
 - **New track**: expands by itself for 3 seconds.
 - **Hover or click**: expands; collapses 0.4 s after the pointer leaves.
 - **Paused**: dims, then hides after 15 seconds (configurable, or off).
@@ -30,17 +30,34 @@ On a MacBook the island lives in the notch and grows out of it. On an external m
 - "Back" after 3 seconds restarts the track. If the player has no next track (a single video in a browser), "forward" skips 15 s and both buttons switch to ±15 s.
 - Hidden in full-screen apps by default.
 
+## Look: island or notch
+
+In Settings (**Displays → Look**) choose **Auto** (notch on a MacBook with a notch, a separate island on other screens), **Island** (a separate pill on any screen; on a MacBook with a notch it sits below the menu bar) or **Notch** (a shape hanging from the top edge; where there is no notch it is drawn at the top centre).
+
+## Live activities
+
+Like Dynamic Island: a second capsule appears beside the island. The island shows music; the capsule shows one activity at a time (more important wins):
+
+- **Timer** and **stopwatch**, started from the menu bar menu. Tap the capsule to pause or resume; hovering shows pause and cancel buttons. A finished timer rings (sound can be turned off in Settings) and goes away after 10 seconds.
+- **Power**: charger plugged in or unplugged, battery down to 20 %.
+- **Bluetooth headphones** became the sound output (shows the device name).
+- **File progress** (off by default, experimental): copies and downloads, percent only.
+
+Everything is local: no network, no new permissions, and every source has its own switch in Settings. Details in [SECURITY.md](SECURITY.md).
+
 ## Build and run
 
 Requires macOS 27 and the Command Line Tools (Xcode is optional). No paid developer account.
 
 ```bash
 scripts/build-app.sh            # release → build/Islet.app
+scripts/install.sh              # build and install into /Applications, replacing the old version
+scripts/audit.sh                # security audit of the sources
 swift test                      # core unit tests
 scripts/test.sh                 # tests, app bundle and launch self-check
 ```
 
-Install: drag `build/Islet.app` into Applications and open it. The icon appears in the menu bar (there is no Dock icon). Settings are in that menu, or open Islet again from Finder.
+Install: `scripts/install.sh` builds the app, quits the running copy, moves the old version out of Applications into the Trash (so it can be put back), installs the new one and starts it. Settings are kept. By hand: drag `build/Islet.app` into Applications and open it. If a new copy starts while an old one is running, the old one quits by itself. The icon appears in the menu bar (there is no Dock icon). Settings are in that menu, or open Islet again from Finder.
 
 Self-check: `build/Islet.app/Contents/MacOS/Islet --self-check` starts the app, prints the data source, current track, screens and islands, and exits with 0 (OK), 2 (works only in fallback mode) or 1 (broken). It waits for the adapter's own check, so a blocked MediaRemote cannot pass as OK.
 
@@ -81,16 +98,18 @@ Details, permissions and how to report a vulnerability: [SECURITY.md](SECURITY.m
 
 | Part | Where |
 |---|---|
-| Window-free logic: adapter stream parsing, state machine, geometry, position interpolation, marquee, artwork colour, source failover | `Sources/IsletCore` (+ tests) |
+| Window-free logic: adapter stream parsing, state machine, geometry, position interpolation, marquee, artwork colour, source failover, live activities (timer, stopwatch, queue, capsule placement) | `Sources/IsletCore` (+ tests) |
 | Sources: adapter via `/usr/bin/perl`, Music/Spotify fallback | `Sources/Islet/Sources` |
 | Panels (non-activating `NSPanel`, one per screen), pointer tracking, display changes | `Sources/Islet/Island` |
 | SwiftUI island: notch shape with concave top corners, pill, spring animations, Core Animation equaliser | `Sources/Islet/Island` |
+| Live activity sources: battery (IOKit), sound output (Core Audio), file progress (`Progress`) | `Sources/Islet/Activities` |
+| Activity capsule beside the island; every animation in one place | `Sources/Islet/Island/SatelliteView.swift`, `IslandMotion.swift` |
 | Menu bar item, settings, hotkey, login item | `Sources/Islet/Menu`, `Settings`, `System` |
 | MediaRemote adapter (unmodified, BSD-3-Clause) | `Vendor/mediaremote-adapter`, built by `scripts/build-adapter.sh` |
 
-The style is chosen per screen: a screen with a notch (`safeAreaInsets.top > 0`, notch width from `auxiliaryTopLeftArea`/`auxiliaryTopRightArea`) gets the notch style, every other screen the pill. The layout is a pure function of screen descriptions and settings, recomputed when a monitor is plugged in, the lid closes or the resolution changes. On monitors the menu bar height comes from `frame` vs `visibleFrame`: on macOS 27 `NSStatusBar.system.thickness` returns 22 pt while the bar is 30 pt, so it is only the fallback for an auto-hidden menu bar.
+The style is chosen per screen: a screen with a notch (`safeAreaInsets.top > 0`, notch width from `auxiliaryTopLeftArea`/`auxiliaryTopRightArea`) gets the notch style, every other screen the pill. The "Look" setting can override that: "Island" everywhere (below the menu bar on a notched screen) or "Notch" everywhere (a compact drawn notch at the top centre where there is none). The layout is a pure function of screen descriptions and settings, recomputed when a monitor is plugged in, the lid closes or the resolution changes. On monitors the menu bar height comes from `frame` vs `visibleFrame`: on macOS 27 `NSStatusBar.system.thickness` returns 22 pt while the bar is 30 pt, so it is only the fallback for an auto-hidden menu bar.
 
-Tests (Swift Testing, 95): JSON stream parsing (normal, empty, broken, split into chunks), every state-machine transition with an injected clock, frames for a notched screen, 1× and 2× monitors, two screens and configuration changes, interpolation, marquee, dominant colour on synthetic images, source failover, bars on synthetic tones (bass, mids, highs, silence), back/forward buttons.
+Tests (Swift Testing, 119): JSON stream parsing (normal, empty, broken, split into chunks), every state-machine transition with an injected clock, frames for a notched screen, 1× and 2× monitors, two screens and configuration changes, interpolation, marquee, dominant colour on synthetic images, source failover, bars on synthetic tones (bass, mids, highs, silence), back/forward buttons, timer and stopwatch (pause, finish, limits), activity priorities, capsule placement in every look and scale, the drawn notch. `scripts/audit.sh` checks the sources for network, program launch and permissions.
 
 ## Limitations
 
@@ -98,6 +117,9 @@ Tests (Swift Testing, 95): JSON stream parsing (normal, empty, broken, split int
 - At launch Islet runs the adapter's health check (`test`) once. If nothing is playing at that moment, it briefly creates an untitled "Now Playing" entry; the island ignores it.
 - Browsers do not always provide artwork (YouTube in Safari, for example). The browser's icon is shown instead.
 - The notch style was checked with renders and tests. Live testing on this Mac used a 1440p monitor (1×) with the MacBook lid closed.
+- Headphones: only the device name is shown; the AirPods battery level is not read (that would need Bluetooth permission or a private API).
+- File progress is experimental: only operations that an app reports through `Progress` are shown, and only in Downloads, Desktop, Documents and mounted volumes.
+- `docs/overview.png` still shows the old numbers (5,900 lines, 95 tests).
 - Ad-hoc signature. After a rebuild macOS may ask for Automation permission again. To distribute, sign with a Developer ID and notarize.
 
 ## Debugging

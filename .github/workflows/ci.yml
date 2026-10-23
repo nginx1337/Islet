@@ -21,6 +21,8 @@ jobs:
           sw_vers
           xcrun --show-sdk-version
           swift --version
+      - name: Security audit
+        run: scripts/audit.sh
       - name: Unit tests
         run: swift test
       - name: Build app bundle

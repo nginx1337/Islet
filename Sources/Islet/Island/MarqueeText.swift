@@ -9,8 +9,6 @@ struct MarqueeText: View {
     var color: Color = .white
     /// Scroll only while shown (and playing, for the compact title).
     var active = true
-    /// Blur the text where it runs out at the edges, instead of only fading it.
-    var edgeBlur = false
 
     @State private var textWidth: CGFloat = 0
     @State private var containerWidth: CGFloat = 0
@@ -26,17 +24,10 @@ struct MarqueeText: View {
                 TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !running)) { context in
                     let offset = running ? marquee.offset(at: context.date.timeIntervalSince(start)) : 0
                     let moving = offset < 0
-                    ZStack(alignment: .leading) {
-                        strip(marquee: marquee, offset: offset)
-                            .mask { sharpMask(scrolling: marquee.isScrolling, moving: moving) }
-                        if edgeBlur && marquee.isScrolling {
-                            strip(marquee: marquee, offset: offset)
-                                .blur(radius: 2.2)
-                                .mask { edgeMask(moving: moving) }
-                        }
-                    }
-                    .frame(width: containerWidth, alignment: .leading)
-                    .clipped()
+                    strip(marquee: marquee, offset: offset)
+                        .mask { edgeFade(scrolling: marquee.isScrolling, moving: moving) }
+                        .frame(width: containerWidth, alignment: .leading)
+                        .clipped()
                 }
             }
             .onChange(of: text) { start = Date() }
@@ -53,11 +44,11 @@ struct MarqueeText: View {
         .frame(width: containerWidth, alignment: .leading)
     }
 
-    /// Sharp text: full in the middle, fading out towards the edges while the text overflows.
+    /// Full in the middle, fading out towards the edges while the text overflows.
     @ViewBuilder
-    private func sharpMask(scrolling: Bool, moving: Bool) -> some View {
+    private func edgeFade(scrolling: Bool, moving: Bool) -> some View {
         if scrolling {
-            let edge = edgeBlur ? 0.14 : 0.06
+            let edge = 0.1
             LinearGradient(
                 stops: [.init(color: moving ? .clear : .black, location: 0),
                         .init(color: .black, location: moving ? edge : 0),
@@ -67,18 +58,6 @@ struct MarqueeText: View {
         } else {
             Rectangle()
         }
-    }
-
-    /// Blurred copy: shows only near the edges, where the sharp text fades, and dissolves at the very end.
-    private func edgeMask(moving: Bool) -> some View {
-        LinearGradient(
-            stops: [.init(color: .clear, location: 0),
-                    .init(color: moving ? .black.opacity(0.8) : .clear, location: 0.05),
-                    .init(color: .clear, location: 0.16),
-                    .init(color: .clear, location: 0.74),
-                    .init(color: .black.opacity(0.85), location: 0.9),
-                    .init(color: .clear, location: 1)],
-            startPoint: .leading, endPoint: .trailing)
     }
 
     private var label: some View {

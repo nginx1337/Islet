@@ -47,6 +47,13 @@ public struct ScreenDescriptor: Equatable, Sendable {
         return statusBarThickness
     }
 
+    /// Where a drawn notch goes on a screen that has none (when the user picks the notch look):
+    /// top centre, as tall as the menu bar, as wide as a real notch.
+    public var virtualNotchRect: CGRect {
+        let width: CGFloat = 190
+        return CGRect(x: (frame.width - width) / 2, y: 0, width: width, height: menuBarHeight)
+    }
+
     /// Notch rectangle in screen-local coordinates measured from the top-left corner.
     public var notchRect: CGRect? {
         guard hasNotch else { return nil }
@@ -63,6 +70,16 @@ public struct ScreenDescriptor: Equatable, Sendable {
 /// On which displays the island appears.
 public enum ScreenSelection: String, Codable, CaseIterable, Sendable {
     case all, main, builtIn, external
+}
+
+/// Which look the user wants: the notch tab, the floating island, or whichever suits the screen.
+public enum IslandStylePreference: String, Codable, CaseIterable, Sendable {
+    /// Notch on screens with a notch, floating island elsewhere.
+    case automatic
+    /// A separate pill, on every screen.
+    case island
+    /// A tab hanging from the top edge, on every screen (a drawn notch where there is no physical one).
+    case notch
 }
 
 /// Where the floating island sits on a display without a notch.
@@ -82,11 +99,12 @@ public struct LayoutSettings: Equatable, Sendable {
     public var islandScale: CGFloat = 1
     /// Show the title in the compact island (between artwork and equaliser).
     public var compactTitle: Bool = false
+    public var stylePreference: IslandStylePreference = .automatic
 
     public init(
         selection: ScreenSelection = .all, placement: MonitorPlacement = .overMenuBar,
         verticalOffset: CGFloat = 0, notchScale: CGFloat = 1, islandScale: CGFloat = 1,
-        compactTitle: Bool = false
+        compactTitle: Bool = false, stylePreference: IslandStylePreference = .automatic
     ) {
         self.selection = selection
         self.placement = placement
@@ -94,6 +112,7 @@ public struct LayoutSettings: Equatable, Sendable {
         self.notchScale = notchScale
         self.islandScale = islandScale
         self.compactTitle = compactTitle
+        self.stylePreference = stylePreference
     }
 }
 
@@ -156,6 +175,9 @@ public struct IslandLayout: Equatable, Sendable {
     public var expanded: ShapeSpec
     /// Height at the top of the expanded island that is covered by the notch (0 for floating).
     public var contentTopInset: CGFloat
+    /// A notch drawn on a screen that has none: nothing is hidden in the middle, so it is laid out
+    /// like a compact pill that hangs from the top edge.
+    public var isDrawnNotch: Bool = false
     /// Width of the notch itself; compact content goes into the "ears" on its sides.
     public var notchWidth: CGFloat
     public var scale: CGFloat
@@ -166,14 +188,21 @@ public struct IslandLayout: Equatable, Sendable {
     /// Width of the part of each ear that holds the artwork (left) or the bars (right).
     public var compactEar: CGFloat = 0
 
+    /// Space between the title and the artwork on one side, the bars on the other (at scale 1).
+    public static let titleInset: CGFloat = 6
+
     /// The compact shape narrowed to the title, so a short title leaves no empty gap.
     /// `compact` itself is the widest it gets (long titles scroll inside it).
     public func compact(fittingTitle titleWidth: CGFloat?) -> ShapeSpec {
         guard compactTitle, let titleWidth, titleWidth > 0, compactBaseWidth > 0 else { return compact }
         let padding: CGFloat = 12 * scale
+        // Between the artwork and the bars the title also keeps a gap on both sides, so it never touches them.
+        let between = padding + 2 * Self.titleInset * scale
         let width: CGFloat = switch style {
         case .floating:
-            max(compactBaseWidth, 2 * compactEar + titleWidth + padding)
+            max(compactBaseWidth, 2 * compactEar + titleWidth + between)
+        case .notch where isDrawnNotch:
+            max(compactBaseWidth, 2 * compactEar + titleWidth + between)
         case .notch:
             // The title sits in the left ear; both ears grow by the same amount to stay centred on the notch.
             compactBaseWidth + 2 * max(0, titleWidth + padding)
@@ -218,6 +247,8 @@ public enum IslandLayoutEngine {
         public static let compactTitleWidth: CGFloat = 120
         /// Extra width of each notch ear when the title is shown (it sits in the left ear).
         public static let notchTitleEar: CGFloat = 90
+        /// Empty width between the artwork and the bars of a drawn notch.
+        public static let drawnNotchGap: CGFloat = 36
         public static let floatingExpandedRadius: CGFloat = 32
         public static let shadowMargin: CGFloat = 36
     }
@@ -235,14 +266,22 @@ public enum IslandLayoutEngine {
         selectedScreens(screens, selection: settings.selection).map { layout(for: $0, settings: settings) }
     }
 
-    public static func style(for screen: ScreenDescriptor) -> IslandStyle {
-        screen.hasNotch ? .notch : .floating
+    public static func style(for screen: ScreenDescriptor, preference: IslandStylePreference = .automatic) -> IslandStyle {
+        switch preference {
+        case .automatic: screen.hasNotch ? .notch : .floating
+        case .island: .floating
+        case .notch: .notch
+        }
     }
 
     public static func layout(for screen: ScreenDescriptor, settings: LayoutSettings) -> IslandLayout {
-        var layout = switch style(for: screen) {
-        case .notch: notchLayout(screen, scale: clampScale(settings.notchScale), title: settings.compactTitle)
-        case .floating: floatingLayout(screen, settings: settings, scale: clampScale(settings.islandScale))
+        var layout = switch style(for: screen, preference: settings.stylePreference) {
+        case .notch:
+            notchLayout(
+                screen, notch: screen.notchRect ?? screen.virtualNotchRect, isVirtual: !screen.hasNotch,
+                scale: clampScale(settings.notchScale), title: settings.compactTitle)
+        case .floating:
+            floatingLayout(screen, settings: settings, scale: clampScale(settings.islandScale))
         }
         layout.compactTitle = settings.compactTitle
         return layout
@@ -252,19 +291,36 @@ public enum IslandLayoutEngine {
 
     // MARK: Notch
 
-    static func notchLayout(_ screen: ScreenDescriptor, scale s: CGFloat, title: Bool = false) -> IslandLayout {
-        let notch = screen.notchRect!
+    /// `isVirtual`: there is no physical notch. The shape is then a compact tab hanging from the top
+    /// edge (nothing sits in the middle), and its hidden state is invisible instead of tucked away.
+    static func notchLayout(
+        _ screen: ScreenDescriptor, notch: CGRect, isVirtual: Bool = false, scale s: CGFloat, title: Bool = false
+    ) -> IslandLayout {
         let px = PixelGrid(scale: screen.backingScale)
         let h = px.round(notch.height)
-        // With a title, each ear widens: the title sits in the left one after the artwork.
         let baseEar = px.round(max(h, 24) * 1.15 * s)
-        let ear = baseEar + (title ? px.round(Metrics.notchTitleEar * s) : 0)
         let flare = px.round(Metrics.notchTopFlare)
-        let expandedWidth = px.round(max(Metrics.expandedWidth * s, notch.width + 2 * ear + 40))
+
+        // Widths of the compact shape: `compactBase` without a title, `compactWidest` with the longest title.
+        // Real notch: each ear widens with the title, which sits in the left one after the artwork.
+        // Drawn notch: the title fills the middle, between the artwork and the bars.
+        let compactBase: CGFloat
+        let compactWidest: CGFloat
+        if isVirtual {
+            compactBase = px.round(2 * baseEar + Metrics.drawnNotchGap * s)
+            compactWidest = compactBase + (title ? px.round(Metrics.compactTitleWidth * s) : 0)
+        } else {
+            let ear = baseEar + (title ? px.round(Metrics.notchTitleEar * s) : 0)
+            compactBase = notch.width + 2 * baseEar
+            compactWidest = notch.width + 2 * ear
+        }
+        let expandedWidth = px.round(max(Metrics.expandedWidth * s, compactWidest + 40))
         let expandedHeight = px.round(h + Metrics.expandedContentHeight * s)
         let margin = Metrics.shadowMargin
 
-        let panelWidth = px.round(expandedWidth + 2 * flare + 2 * margin)
+        // Room on both sides for the second capsule (live activities); keeps the panel centred.
+        let reserve = SatellitePlacement.reserve(scale: s)
+        let panelWidth = px.round(expandedWidth + 2 * flare + 2 * margin + 2 * reserve)
         let panelHeight = px.round(expandedHeight + margin)
         // Centre the panel on the notch, not on the screen: notches may be off-centre on future hardware.
         let notchMidX = screen.frame.minX + notch.midX
@@ -277,21 +333,28 @@ public enum IslandLayoutEngine {
             CGRect(x: px.round(cx - width / 2), y: 0, width: width, height: height)
         }
         // Hidden: tucked just inside the physical notch, so nothing shows around it.
-        let hidden = ShapeSpec(
-            frame: centred(width: max(0, notch.width - 4), height: max(0, h - 1)),
-            cornerRadius: min(10, h / 3), topFlare: 0)
+        // A drawn notch has nothing to hide in: it grows out of a small, invisible tab instead.
+        let hidden = isVirtual
+            ? ShapeSpec(
+                frame: centred(width: compactBase * 0.5, height: h * 0.6),
+                cornerRadius: min(10, h / 3), topFlare: 0, opacity: 0)
+            : ShapeSpec(
+                frame: centred(width: max(0, notch.width - 4), height: max(0, h - 1)),
+                cornerRadius: min(10, h / 3), topFlare: 0)
         let compact = ShapeSpec(
-            frame: centred(width: notch.width + 2 * ear, height: h),
+            frame: centred(width: compactWidest, height: h),
             cornerRadius: px.round(min(h * 0.42, 14)), topFlare: flare)
         let expanded = ShapeSpec(
             frame: centred(width: expandedWidth, height: expandedHeight),
             cornerRadius: px.round(Metrics.notchExpandedRadius * s), topFlare: flare)
 
-        return IslandLayout(
+        var layout = IslandLayout(
             screenID: screen.id, style: .notch, panelFrame: panelFrame,
             hidden: hidden, compact: compact, expanded: expanded,
-            contentTopInset: h, notchWidth: notch.width, scale: s,
-            compactBaseWidth: notch.width + 2 * baseEar, compactEar: baseEar)
+            contentTopInset: h, notchWidth: isVirtual ? 0 : notch.width, scale: s,
+            compactBaseWidth: compactBase, compactEar: baseEar)
+        layout.isDrawnNotch = isVirtual
+        return layout
     }
 
     // MARK: Floating
@@ -300,7 +363,9 @@ public enum IslandLayoutEngine {
         let px = PixelGrid(scale: screen.backingScale)
         let menuBar = px.round(screen.menuBarHeight)
         let gap = Metrics.floatingTopGap
-        let baseTop: CGFloat = switch settings.placement {
+        // On a screen with a notch the island always goes below the menu bar, never over the notch.
+        let placement: MonitorPlacement = screen.hasNotch ? .belowMenuBar : settings.placement
+        let baseTop: CGFloat = switch placement {
         case .overMenuBar: gap
         case .belowMenuBar: menuBar + gap
         }
@@ -311,7 +376,8 @@ public enum IslandLayoutEngine {
         let expandedHeight = px.round(Metrics.expandedContentHeight * s)
         let margin = Metrics.shadowMargin
 
-        let panelWidth = px.round(expandedWidth + 2 * margin)
+        let reserve = SatellitePlacement.reserve(scale: s)
+        let panelWidth = px.round(expandedWidth + 2 * margin + 2 * reserve)
         let panelHeight = px.round(top + expandedHeight + margin)
         let panelFrame = CGRect(
             x: px.round(screen.frame.midX - panelWidth / 2), y: screen.frame.maxY - panelHeight,

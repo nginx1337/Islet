@@ -9,6 +9,7 @@ final class AppSettings {
 
     @ObservationIgnored private let defaults: UserDefaults
 
+    var islandStyle: IslandStylePreference { didSet { save(islandStyle.rawValue, "islandStyle") } }
     var screenSelection: ScreenSelection { didSet { save(screenSelection.rawValue, "screenSelection") } }
     var monitorPlacement: MonitorPlacement { didSet { save(monitorPlacement.rawValue, "monitorPlacement") } }
     var verticalOffset: Double { didSet { save(verticalOffset, "verticalOffset") } }
@@ -22,6 +23,11 @@ final class AppSettings {
     var showInFullScreen: Bool { didSet { save(showInFullScreen, "showInFullScreen") } }
     var compactTitle: Bool { didSet { save(compactTitle, "compactTitle") } }
     var liveEqualizer: Bool { didSet { save(liveEqualizer, "liveEqualizer") } }
+    var showPowerActivity: Bool { didSet { save(showPowerActivity, "showPowerActivity") } }
+    var showHeadphonesActivity: Bool { didSet { save(showHeadphonesActivity, "showHeadphonesActivity") } }
+    /// Off by default: it watches Downloads, Desktop, Documents and mounted volumes.
+    var showTransferActivity: Bool { didSet { save(showTransferActivity, "showTransferActivity") } }
+    var timerSound: Bool { didSet { save(timerSound, "timerSound") } }
     var hotKey: HotKeyCombo? {
         didSet {
             if let hotKey, let data = try? JSONEncoder().encode(hotKey) {
@@ -40,6 +46,7 @@ final class AppSettings {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        islandStyle = defaults.string(forKey: "islandStyle").flatMap(IslandStylePreference.init) ?? .automatic
         screenSelection = defaults.string(forKey: "screenSelection").flatMap(ScreenSelection.init) ?? .all
         monitorPlacement = defaults.string(forKey: "monitorPlacement").flatMap(MonitorPlacement.init) ?? .overMenuBar
         verticalOffset = defaults.object(forKey: "verticalOffset") as? Double ?? 0
@@ -53,6 +60,10 @@ final class AppSettings {
         showInFullScreen = defaults.object(forKey: "showInFullScreen") as? Bool ?? false
         compactTitle = defaults.object(forKey: "compactTitle") as? Bool ?? false
         liveEqualizer = defaults.object(forKey: "liveEqualizer") as? Bool ?? true
+        showPowerActivity = defaults.object(forKey: "showPowerActivity") as? Bool ?? true
+        showHeadphonesActivity = defaults.object(forKey: "showHeadphonesActivity") as? Bool ?? true
+        showTransferActivity = defaults.object(forKey: "showTransferActivity") as? Bool ?? false
+        timerSound = defaults.object(forKey: "timerSound") as? Bool ?? true
         if let data = defaults.data(forKey: "hotKey") {
             hotKey = data.isEmpty ? nil : (try? JSONDecoder().decode(HotKeyCombo.self, from: data))?.normalized()
         } else {
@@ -65,7 +76,8 @@ final class AppSettings {
     var layoutSettings: LayoutSettings {
         LayoutSettings(
             selection: screenSelection, placement: monitorPlacement, verticalOffset: verticalOffset,
-            notchScale: notchScale, islandScale: islandScale, compactTitle: compactTitle)
+            notchScale: notchScale, islandScale: islandScale, compactTitle: compactTitle,
+            stylePreference: islandStyle)
     }
 
     var behavior: IslandBehavior {

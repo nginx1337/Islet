@@ -22,7 +22,29 @@ struct IslandRootView: View {
             .offset(x: shape.frame.minX, y: shape.frame.minY)
         }
         .frame(width: layout.panelFrame.width, height: layout.panelFrame.height, alignment: .topLeading)
+        .overlay(alignment: .topLeading) { satellite }
         .environment(\.colorScheme, .dark)
+    }
+}
+
+extension IslandRootView {
+    /// The second capsule beside the island: pops out of the island's edge and slides along with it.
+    @ViewBuilder
+    var satellite: some View {
+        ZStack(alignment: .topLeading) {
+            if let activity = model.activities.current, let frame = model.satelliteFrame {
+                SatelliteView(activity: activity, activities: model.activities, hovering: model.satelliteHovering,
+                              style: model.layout.style, scale: model.layout.scale, height: frame.height)
+                    .frame(width: frame.width, height: frame.height)
+                    .offset(x: frame.minX, y: frame.minY)
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.5, anchor: .leading).combined(with: .opacity),
+                        removal: .scale(scale: 0.7, anchor: .leading).combined(with: .opacity)))
+            }
+        }
+        .frame(width: model.layout.panelFrame.width, height: model.layout.panelFrame.height, alignment: .topLeading)
+        .animation(IslandMotion.satellite, value: model.activities.current?.kind)
+        .animation(IslandMotion.satellite, value: model.satelliteHovering)
     }
 }
 
@@ -40,8 +62,12 @@ struct CompactMetrics {
     init(layout: IslandLayout, frame: CGRect) {
         size = frame.size
         let h = frame.height
+        let inset = IslandLayout.titleInset * layout.scale
         art = max(14, min(h - 10, 24))
         switch layout.style {
+        case .notch where layout.isDrawnNotch:
+            ear = layout.compactEar
+            titleRect = layout.compactTitle ? CGRect(x: ear + inset, y: 0, width: max(0, frame.width - 2 * (ear + inset)), height: h) : nil
         case .notch:
             let side = max(0, (frame.width - layout.notchWidth) / 2)
             ear = min(side, layout.compactEar)
@@ -49,7 +75,7 @@ struct CompactMetrics {
                 ? CGRect(x: ear, y: 0, width: side - ear - 8, height: h) : nil
         case .floating:
             ear = layout.compactEar
-            titleRect = layout.compactTitle ? CGRect(x: ear, y: 0, width: frame.width - 2 * ear, height: h) : nil
+            titleRect = layout.compactTitle ? CGRect(x: ear + inset, y: 0, width: max(0, frame.width - 2 * (ear + inset)), height: h) : nil
         }
         titleFontSize = IslandViewModel.compactTitleFontSize(for: layout)
         artCenter = CGPoint(x: ear / 2, y: h / 2)
@@ -94,8 +120,6 @@ struct IslandBody: View {
         let isExpanded = presentation.isExpanded
         let isCompact: Bool = if case .compact = presentation { true } else { false }
         let dimmed = presentation == .compact(dimmed: true)
-        let accent = Color(media.accent.nsColor)
-        let glowing = media.tintFromArtwork && presentation == .compact(dimmed: false) && media.artworkAccent != nil
         let width = shape.frame.width
 
         // Artwork: one view, two spots.
@@ -109,8 +133,7 @@ struct IslandBody: View {
                 CompactLayer(metrics: compact, media: media, visible: isCompact, dimmed: dimmed, onClick: onClick)
                     .frame(width: compact.size.width, height: compact.size.height)
                     .opacity(isCompact ? (dimmed ? 0.55 : 1) : 0)
-                    .blur(radius: isCompact ? 0 : 5)
-                    .animation(isCompact ? .easeOut(duration: 0.22).delay(0.16) : .easeIn(duration: 0.08), value: isCompact)
+                    .animation(isCompact ? IslandMotion.fadeIn(delay: 0.10) : IslandMotion.fadeOut, value: isCompact)
                     .animation(.easeInOut(duration: 0.3), value: dimmed)
                     .allowsHitTesting(isCompact)
             }
@@ -118,9 +141,7 @@ struct IslandBody: View {
                 ExpandedLayer(metrics: expanded, media: media, active: isExpanded)
                     .frame(width: expanded.size.width, height: expanded.size.height)
                     .opacity(isExpanded ? 1 : 0)
-                    .blur(radius: isExpanded ? 0 : 8)
-                    .scaleEffect(isExpanded ? 1 : 0.94, anchor: .top)
-                    .animation(isExpanded ? .easeOut(duration: 0.3).delay(0.07) : .easeIn(duration: 0.09), value: isExpanded)
+                    .animation(isExpanded ? IslandMotion.fadeIn() : IslandMotion.fadeOut, value: isExpanded)
                     .allowsHitTesting(isExpanded)
             }
             .overlay(alignment: .topLeading) {
@@ -132,10 +153,10 @@ struct IslandBody: View {
                                 .frame(width: artSize * 0.36, height: artSize * 0.36)
                                 .offset(x: artSize * 0.09, y: artSize * 0.09)
                                 .opacity(isExpanded ? 1 : 0)
-                                .animation(isExpanded ? .easeOut(duration: 0.2).delay(0.22) : .easeIn(duration: 0.08), value: isExpanded)
+                                .animation(isExpanded ? IslandMotion.fadeIn(delay: 0.2) : IslandMotion.fadeOut, value: isExpanded)
                         }
                     }
-                    .scaleEffect(presentation.isHidden ? 0.4 : 1)
+                    .scaleEffect(presentation.isHidden ? 0.85 : 1)
                     .opacity(presentation.isHidden ? 0 : (dimmed ? 0.55 : 1))
                     .position(artCenter)
                     .allowsHitTesting(false)
@@ -147,12 +168,10 @@ struct IslandBody: View {
                     NotchShape(flare: shape.topFlare, bottomRadius: shape.cornerRadius)
                         .fill(.black)
                         .padding(.horizontal, -shape.topFlare)
-                        .shadow(color: glowing ? accent.opacity(0.35) : .clear, radius: 10, y: 2)
                 case .floating:
                     RoundedRectangle(cornerRadius: shape.cornerRadius, style: .continuous)
                         .fill(.black)
-                        .shadow(color: .black.opacity(presentation.isHidden ? 0 : 0.35), radius: 12, y: 5)
-                        .shadow(color: glowing ? accent.opacity(0.3) : .clear, radius: 9)
+                        .shadow(color: .black.opacity(presentation.isHidden ? 0 : 0.3), radius: 10, y: 4)
                 }
             }
             .contentShape(clip)
@@ -189,11 +208,11 @@ struct CompactLayer: View {
                 MarqueeText(
                     text: media.state?.title ?? "",
                     font: .system(size: metrics.titleFontSize, weight: .semibold),
-                    color: Color(accent.nsColor), active: playing, edgeBlur: true)
+                    color: Color(accent.nsColor), active: playing)
                     .frame(width: title.width)
                     .position(x: title.midX, y: title.midY)
             }
-            EqualizerView(color: accent.nsColor, active: playing, glow: media.tintFromArtwork && playing)
+            EqualizerView(color: accent.nsColor, active: playing)
                 .frame(width: metrics.art * 0.72, height: metrics.art * 0.6)
                 .position(metrics.barsCenter)
         }
@@ -290,8 +309,8 @@ struct ControlButton: View {
 struct PressableStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.86 : 1)
-            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.92 : 1)
+            .animation(IslandMotion.press, value: configuration.isPressed)
     }
 }
 

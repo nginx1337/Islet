@@ -6,7 +6,6 @@ import SwiftUI
 struct EqualizerView: View {
     var color: NSColor
     var active: Bool
-    var glow: Bool
     @Environment(\.staticEqualizer) private var staticBars
 
     var body: some View {
@@ -19,13 +18,12 @@ struct EqualizerView: View {
                     ForEach(0..<4, id: \.self) { i in
                         Capsule().fill(Color(color))
                             .frame(width: width, height: geometry.size.height * heights[i])
-                            .shadow(color: glow ? Color(color).opacity(0.8) : .clear, radius: 3)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         } else {
-            EqualizerLayerView(color: color, active: active, glow: glow)
+            EqualizerLayerView(color: color, active: active)
         }
     }
 }
@@ -37,14 +35,13 @@ extension EnvironmentValues {
 struct EqualizerLayerView: NSViewRepresentable {
     var color: NSColor
     var active: Bool
-    var glow: Bool
 
     func makeNSView(context: Context) -> EqualizerNSView {
         EqualizerNSView()
     }
 
     func updateNSView(_ view: EqualizerNSView, context: Context) {
-        view.update(color: color, active: active, glow: glow)
+        view.update(color: color, active: active)
     }
 }
 
@@ -93,17 +90,13 @@ final class EqualizerNSView: NSView {
         restart()
     }
 
-    func update(color: NSColor, active: Bool, glow: Bool) {
+    func update(color: NSColor, active: Bool) {
         let colorChanged = color != self.color
         self.color = color
         CATransaction.begin()
         CATransaction.setAnimationDuration(0.4)
         for bar in bars {
             bar.backgroundColor = color.cgColor
-            bar.shadowColor = color.cgColor
-            bar.shadowOpacity = glow ? 0.8 : 0
-            bar.shadowRadius = 3
-            bar.shadowOffset = .zero
         }
         CATransaction.commit()
         if active != self.active || colorChanged {
