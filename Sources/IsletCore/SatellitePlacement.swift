@@ -33,7 +33,9 @@ public enum SatellitePlacement {
     public static func frame(in layout: IslandLayout, main: ShapeSpec, mainHidden: Bool, width: CGFloat) -> CGRect {
         let height = layout.compact.frame.height
         let top = layout.compact.frame.minY
-        let x: CGFloat = if mainHidden && layout.style == .floating {
+        // Nothing visible to sit beside: a floating island or a drawn notch whose hidden state is invisible.
+        let nothingToSitBeside = layout.style == .floating || layout.hidden.opacity == 0
+        let x: CGFloat = if mainHidden && nothingToSitBeside {
             layout.compact.frame.midX - width / 2
         } else {
             main.frame.maxX + main.topFlare + gap

@@ -40,20 +40,27 @@ struct SettingsView: View {
         let _ = settings.language
         Form {
             Section(tr("Экраны", "Displays")) {
+                Picker(tr("Вид", "Look"), selection: $settings.islandStyle) {
+                    Text(tr("Авто", "Auto")).tag(IslandStylePreference.automatic)
+                    Text(tr("Остров", "Island")).tag(IslandStylePreference.island)
+                    Text(tr("Чёлка", "Notch")).tag(IslandStylePreference.notch)
+                }
+                .pickerStyle(.segmented)
+                Text(styleNote).font(.caption).foregroundStyle(.secondary)
                 Picker(tr("Показывать", "Show on"), selection: $settings.screenSelection) {
                     Text(tr("На всех экранах", "All displays")).tag(ScreenSelection.all)
                     Text(tr("Только на основном", "Primary display only")).tag(ScreenSelection.main)
                     Text(tr("Только на встроенном", "Built-in display only")).tag(ScreenSelection.builtIn)
                     Text(tr("Только на внешних", "External displays only")).tag(ScreenSelection.external)
                 }
-                Picker(tr("На мониторе", "On monitors"), selection: $settings.monitorPlacement) {
+                Picker(tr("Положение острова", "Island position"), selection: $settings.monitorPlacement) {
                     Text(tr("Поверх строки меню", "Over the menu bar")).tag(MonitorPlacement.overMenuBar)
                     Text(tr("Под строкой меню", "Below the menu bar")).tag(MonitorPlacement.belowMenuBar)
                 }
                 .pickerStyle(.segmented)
                 LabeledSlider(title: tr("Смещение вниз", "Move down"), value: $settings.verticalOffset, range: -6...40, step: 1, format: { "\(Int($0)) pt" })
-                LabeledSlider(title: tr("Размер в чёлке", "Size in the notch"), value: $settings.notchScale, range: 0.8...1.3, step: 0.05, format: percent)
-                LabeledSlider(title: tr("Размер на мониторе", "Size on monitors"), value: $settings.islandScale, range: 0.8...1.3, step: 0.05, format: percent)
+                LabeledSlider(title: tr("Размер чёлки", "Notch size"), value: $settings.notchScale, range: 0.8...1.3, step: 0.05, format: percent)
+                LabeledSlider(title: tr("Размер острова", "Island size"), value: $settings.islandScale, range: 0.8...1.3, step: 0.05, format: percent)
             }
 
             Section(tr("Поведение", "Behaviour")) {
@@ -144,6 +151,17 @@ struct SettingsView: View {
         .formStyle(.grouped)
         // Fits a 13" MacBook; the form scrolls if a section grows.
         .frame(width: 480, height: 760)
+    }
+
+    private var styleNote: String {
+        switch settings.islandStyle {
+        case .automatic:
+            tr("Чёлка на MacBook с вырезом, отдельный остров на остальных экранах.", "Notch on a MacBook with a notch, a separate island on other screens.")
+        case .island:
+            tr("Отдельная капсула на всех экранах. На MacBook с вырезом она под строкой меню.", "A separate pill on every screen. On a MacBook with a notch it sits below the menu bar.")
+        case .notch:
+            tr("«Чёлка» на всех экранах. Где выреза нет, она нарисована сверху по центру.", "The notch look on every screen. Where there is no notch it is drawn at the top centre.")
+        }
     }
 
     private var audioNote: String {

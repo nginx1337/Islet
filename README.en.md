@@ -21,7 +21,7 @@ On a MacBook the island lives in the notch and grows out of it. On an external m
 
 - **Nothing playing**: hidden. In the notch it matches the notch and is invisible; on a monitor it shrinks to a point and fades out.
 - **Playing**: compact, with artwork and equaliser. The four bars show the Mac's real sound: bass, low mids, mids, highs. Without System Audio Recording permission they just animate.
-- **Title in the compact island** (a setting): between the artwork and the bars, tinted from the artwork. A long title scrolls and blurs out at the edges.
+- **Title in the compact island** (a setting): between the artwork and the bars, tinted from the artwork. A long title scrolls and fades out at the edges.
 - **New track**: expands by itself for 3 seconds.
 - **Hover or click**: expands; collapses 0.4 s after the pointer leaves.
 - **Paused**: dims, then hides after 15 seconds (configurable, or off).
@@ -29,6 +29,10 @@ On a MacBook the island lives in the notch and grows out of it. On an external m
 - Click the title to open the playing app. Click or drag the progress bar to seek.
 - "Back" after 3 seconds restarts the track. If the player has no next track (a single video in a browser), "forward" skips 15 s and both buttons switch to ±15 s.
 - Hidden in full-screen apps by default.
+
+## Look: island or notch
+
+In Settings (**Displays → Look**) choose **Auto** (notch on a MacBook with a notch, a separate island on other screens), **Island** (a separate pill on any screen; on a MacBook with a notch it sits below the menu bar) or **Notch** (a shape hanging from the top edge; where there is no notch it is drawn at the top centre).
 
 ## Live activities
 

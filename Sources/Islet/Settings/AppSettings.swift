@@ -9,6 +9,7 @@ final class AppSettings {
 
     @ObservationIgnored private let defaults: UserDefaults
 
+    var islandStyle: IslandStylePreference { didSet { save(islandStyle.rawValue, "islandStyle") } }
     var screenSelection: ScreenSelection { didSet { save(screenSelection.rawValue, "screenSelection") } }
     var monitorPlacement: MonitorPlacement { didSet { save(monitorPlacement.rawValue, "monitorPlacement") } }
     var verticalOffset: Double { didSet { save(verticalOffset, "verticalOffset") } }
@@ -45,6 +46,7 @@ final class AppSettings {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        islandStyle = defaults.string(forKey: "islandStyle").flatMap(IslandStylePreference.init) ?? .automatic
         screenSelection = defaults.string(forKey: "screenSelection").flatMap(ScreenSelection.init) ?? .all
         monitorPlacement = defaults.string(forKey: "monitorPlacement").flatMap(MonitorPlacement.init) ?? .overMenuBar
         verticalOffset = defaults.object(forKey: "verticalOffset") as? Double ?? 0
@@ -74,7 +76,8 @@ final class AppSettings {
     var layoutSettings: LayoutSettings {
         LayoutSettings(
             selection: screenSelection, placement: monitorPlacement, verticalOffset: verticalOffset,
-            notchScale: notchScale, islandScale: islandScale, compactTitle: compactTitle)
+            notchScale: notchScale, islandScale: islandScale, compactTitle: compactTitle,
+            stylePreference: islandStyle)
     }
 
     var behavior: IslandBehavior {

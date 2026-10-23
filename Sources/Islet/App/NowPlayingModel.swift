@@ -48,7 +48,7 @@ final class NowPlayingModel {
     func stop() { switcher.stop() }
     func retryPrimarySource() { switcher.retryPrimary() }
 
-    /// Accent for the equaliser and glow.
+    /// Accent for the equaliser and the title.
     var accent: SRGBColor {
         tintFromArtwork ? (artworkAccent ?? .neutral) : .neutral
     }

@@ -89,7 +89,6 @@ struct SatelliteView: View {
             Image(systemName: symbol)
                 .font(.system(size: 14 * s, weight: .semibold))
                 .foregroundStyle(tint)
-                .symbolEffect(.bounce, options: .repeating, isActive: ringing)
         }
     }
 
@@ -146,7 +145,6 @@ private struct ActivityClock: View {
             Text(text(context.date))
                 .font(.system(size: 14 * scale, weight: .semibold).monospacedDigit())
                 .foregroundStyle(tint)
-                .contentTransition(.numericText())
                 .lineLimit(1)
                 .fixedSize()
         }

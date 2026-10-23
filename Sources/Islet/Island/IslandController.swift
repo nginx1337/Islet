@@ -52,7 +52,7 @@ final class IslandViewModel {
             return ceil((text as NSString).size(withAttributes: [.font: font]).width)
         }
         guard width != titleWidth else { return }
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { titleWidth = width }
+        withAnimation(IslandMotion.title) { titleWidth = width }
     }
 
     func setPresentation(_ new: IslandPresentation, animated: Bool = true) {
@@ -62,24 +62,8 @@ final class IslandViewModel {
             presentation = new
             return
         }
-        withAnimation(Self.animation(from: old, to: new, style: layout.style)) {
+        withAnimation(IslandMotion.shape(from: old, to: new)) {
             presentation = new
-        }
-    }
-
-    /// Springs: a bouncy pop out of the point (floating), softer morphs for the notch.
-    static func animation(from old: IslandPresentation, to new: IslandPresentation, style: IslandStyle) -> Animation {
-        switch (old, new) {
-        case (.hidden, _) where style == .floating:
-            .spring(response: 0.5, dampingFraction: 0.62)
-        case (.hidden, _):
-            .spring(response: 0.45, dampingFraction: 0.78)
-        case (_, .hidden):
-            .spring(response: 0.36, dampingFraction: 0.92)
-        case (_, .expanded):
-            .spring(response: 0.42, dampingFraction: 0.76)
-        default:
-            .spring(response: 0.38, dampingFraction: 0.86)
         }
     }
 }

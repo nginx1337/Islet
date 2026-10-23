@@ -237,4 +237,51 @@ struct GeometryTests {
         let p = CGPoint(x: 120, y: 40)
         #expect(layout.panelPoint(fromGlobal: layout.globalPoint(fromPanel: p)) == p)
     }
+
+    // MARK: Style preference
+
+    @Test func automaticKeepsTheScreenDefault() {
+        let settings = LayoutSettings(stylePreference: .automatic)
+        #expect(IslandLayoutEngine.layout(for: Self.macBook, settings: settings).style == .notch)
+        #expect(IslandLayoutEngine.layout(for: Self.monitor1x, settings: settings).style == .floating)
+    }
+
+    @Test func islandOnAScreenWithANotchSitsBelowTheMenuBar() {
+        let settings = LayoutSettings(placement: .overMenuBar, stylePreference: .island)
+        let layout = IslandLayoutEngine.layout(for: Self.macBook, settings: settings)
+        #expect(layout.style == .floating)
+        #expect(layout.compact.frame.minY >= Self.macBook.safeAreaTop, "never over the physical notch")
+        let bounds = CGRect(origin: .zero, size: layout.panelFrame.size)
+        for shape in [layout.compact, layout.expanded] {
+            #expect(bounds.contains(shape.hitRect))
+        }
+    }
+
+    @Test func notchOnAMonitorIsDrawnAtTheTopCentre() {
+        var monitor = Self.monitor1x
+        monitor.visibleTopInset = 30
+        let layout = IslandLayoutEngine.layout(for: monitor, settings: LayoutSettings(stylePreference: .notch))
+        #expect(layout.style == .notch)
+        #expect(layout.panelFrame.maxY == monitor.frame.maxY)
+        #expect(layout.panelFrame.midX == monitor.frame.midX)
+        #expect(layout.compact.frame.minY == 0, "attached to the top edge")
+        #expect(layout.compact.frame.height == 30, "as tall as the menu bar")
+        #expect(layout.compact.topFlare > 0)
+        #expect(layout.notchWidth == monitor.virtualNotchRect.width)
+        #expect(layout.hidden.opacity == 0, "a drawn notch has nothing to hide in")
+        #expect(layout.expanded.frame.height > layout.compact.frame.height + 80)
+        let bounds = CGRect(origin: .zero, size: layout.panelFrame.size)
+        for shape in [layout.hidden, layout.compact, layout.expanded] {
+            #expect(bounds.contains(shape.hitRect))
+        }
+        #expect(!layout.hidden.contains(CGPoint(x: layout.hidden.frame.midX, y: 1)), "invisible means untouchable")
+    }
+
+    @Test func notchPreferenceKeepsTheRealNotchOnAMacBook() {
+        let layout = IslandLayoutEngine.layout(for: Self.macBook, settings: LayoutSettings(stylePreference: .notch))
+        let automatic = IslandLayoutEngine.layout(for: Self.macBook, settings: LayoutSettings())
+        #expect(layout == automatic)
+        #expect(layout.hidden.opacity == 1)
+    }
 }
+

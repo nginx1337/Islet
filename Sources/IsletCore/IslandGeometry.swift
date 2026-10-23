@@ -47,6 +47,13 @@ public struct ScreenDescriptor: Equatable, Sendable {
         return statusBarThickness
     }
 
+    /// Where a drawn notch goes on a screen that has none (when the user picks the notch look):
+    /// top centre, as tall as the menu bar, as wide as a real notch.
+    public var virtualNotchRect: CGRect {
+        let width: CGFloat = 190
+        return CGRect(x: (frame.width - width) / 2, y: 0, width: width, height: menuBarHeight)
+    }
+
     /// Notch rectangle in screen-local coordinates measured from the top-left corner.
     public var notchRect: CGRect? {
         guard hasNotch else { return nil }
@@ -63,6 +70,16 @@ public struct ScreenDescriptor: Equatable, Sendable {
 /// On which displays the island appears.
 public enum ScreenSelection: String, Codable, CaseIterable, Sendable {
     case all, main, builtIn, external
+}
+
+/// Which look the user wants: the notch tab, the floating island, or whichever suits the screen.
+public enum IslandStylePreference: String, Codable, CaseIterable, Sendable {
+    /// Notch on screens with a notch, floating island elsewhere.
+    case automatic
+    /// A separate pill, on every screen.
+    case island
+    /// A tab hanging from the top edge, on every screen (a drawn notch where there is no physical one).
+    case notch
 }
 
 /// Where the floating island sits on a display without a notch.
@@ -82,11 +99,12 @@ public struct LayoutSettings: Equatable, Sendable {
     public var islandScale: CGFloat = 1
     /// Show the title in the compact island (between artwork and equaliser).
     public var compactTitle: Bool = false
+    public var stylePreference: IslandStylePreference = .automatic
 
     public init(
         selection: ScreenSelection = .all, placement: MonitorPlacement = .overMenuBar,
         verticalOffset: CGFloat = 0, notchScale: CGFloat = 1, islandScale: CGFloat = 1,
-        compactTitle: Bool = false
+        compactTitle: Bool = false, stylePreference: IslandStylePreference = .automatic
     ) {
         self.selection = selection
         self.placement = placement
@@ -94,6 +112,7 @@ public struct LayoutSettings: Equatable, Sendable {
         self.notchScale = notchScale
         self.islandScale = islandScale
         self.compactTitle = compactTitle
+        self.stylePreference = stylePreference
     }
 }
 
@@ -235,14 +254,22 @@ public enum IslandLayoutEngine {
         selectedScreens(screens, selection: settings.selection).map { layout(for: $0, settings: settings) }
     }
 
-    public static func style(for screen: ScreenDescriptor) -> IslandStyle {
-        screen.hasNotch ? .notch : .floating
+    public static func style(for screen: ScreenDescriptor, preference: IslandStylePreference = .automatic) -> IslandStyle {
+        switch preference {
+        case .automatic: screen.hasNotch ? .notch : .floating
+        case .island: .floating
+        case .notch: .notch
+        }
     }
 
     public static func layout(for screen: ScreenDescriptor, settings: LayoutSettings) -> IslandLayout {
-        var layout = switch style(for: screen) {
-        case .notch: notchLayout(screen, scale: clampScale(settings.notchScale), title: settings.compactTitle)
-        case .floating: floatingLayout(screen, settings: settings, scale: clampScale(settings.islandScale))
+        var layout = switch style(for: screen, preference: settings.stylePreference) {
+        case .notch:
+            notchLayout(
+                screen, notch: screen.notchRect ?? screen.virtualNotchRect, isVirtual: !screen.hasNotch,
+                scale: clampScale(settings.notchScale), title: settings.compactTitle)
+        case .floating:
+            floatingLayout(screen, settings: settings, scale: clampScale(settings.islandScale))
         }
         layout.compactTitle = settings.compactTitle
         return layout
@@ -252,8 +279,10 @@ public enum IslandLayoutEngine {
 
     // MARK: Notch
 
-    static func notchLayout(_ screen: ScreenDescriptor, scale s: CGFloat, title: Bool = false) -> IslandLayout {
-        let notch = screen.notchRect!
+    /// `isVirtual`: there is no physical notch to hide in, so the hidden state is invisible instead.
+    static func notchLayout(
+        _ screen: ScreenDescriptor, notch: CGRect, isVirtual: Bool = false, scale s: CGFloat, title: Bool = false
+    ) -> IslandLayout {
         let px = PixelGrid(scale: screen.backingScale)
         let h = px.round(notch.height)
         // With a title, each ear widens: the title sits in the left one after the artwork.
@@ -279,9 +308,14 @@ public enum IslandLayoutEngine {
             CGRect(x: px.round(cx - width / 2), y: 0, width: width, height: height)
         }
         // Hidden: tucked just inside the physical notch, so nothing shows around it.
-        let hidden = ShapeSpec(
-            frame: centred(width: max(0, notch.width - 4), height: max(0, h - 1)),
-            cornerRadius: min(10, h / 3), topFlare: 0)
+        // A drawn notch has nothing to hide in: it grows out of a small, invisible tab instead.
+        let hidden = isVirtual
+            ? ShapeSpec(
+                frame: centred(width: notch.width * 0.6, height: h * 0.6),
+                cornerRadius: min(10, h / 3), topFlare: 0, opacity: 0)
+            : ShapeSpec(
+                frame: centred(width: max(0, notch.width - 4), height: max(0, h - 1)),
+                cornerRadius: min(10, h / 3), topFlare: 0)
         let compact = ShapeSpec(
             frame: centred(width: notch.width + 2 * ear, height: h),
             cornerRadius: px.round(min(h * 0.42, 14)), topFlare: flare)
@@ -302,7 +336,9 @@ public enum IslandLayoutEngine {
         let px = PixelGrid(scale: screen.backingScale)
         let menuBar = px.round(screen.menuBarHeight)
         let gap = Metrics.floatingTopGap
-        let baseTop: CGFloat = switch settings.placement {
+        // On a screen with a notch the island always goes below the menu bar, never over the notch.
+        let placement: MonitorPlacement = screen.hasNotch ? .belowMenuBar : settings.placement
+        let baseTop: CGFloat = switch placement {
         case .overMenuBar: gap
         case .belowMenuBar: menuBar + gap
         }
