@@ -10,10 +10,26 @@ final class IslandViewModel {
     private(set) var presentation: IslandPresentation = .hidden
     /// Natural width of the current title in the compact font; the compact island hugs it.
     private(set) var titleWidth: CGFloat?
+    /// The live activity in the second capsule.
+    let activities: ActivityModel
+    /// The pointer is on the capsule: a timer shows its buttons.
+    var satelliteHovering = false
     @ObservationIgnored var onClick: (() -> Void)?
 
-    init(layout: IslandLayout) {
+    init(layout: IslandLayout, activities: ActivityModel = ActivityModel()) {
         self.layout = layout
+        self.activities = activities
+    }
+
+    /// Where the second capsule is right now, or nil when there is no activity.
+    var satelliteFrame: CGRect? {
+        guard let activity = activities.current else { return nil }
+        let width = SatellitePlacement.width(for: activity.content, scale: layout.scale)
+        return SatellitePlacement.frame(in: layout, main: shape, mainHidden: presentation.isHidden, width: width)
+    }
+
+    func satelliteContains(_ point: CGPoint) -> Bool {
+        satelliteFrame.map { $0.contains(point) } ?? false
     }
 
     var style: IslandStyle { layout.style }
@@ -80,9 +96,10 @@ final class IslandController {
     private let hostingView: IslandHostingView<IslandRootView>
     private var pointerInside = false
 
-    init(layout: IslandLayout, media: NowPlayingModel, behavior: IslandBehavior, clock: IslandClock, showInFullScreen: Bool) {
+    init(layout: IslandLayout, media: NowPlayingModel, activities: ActivityModel, behavior: IslandBehavior,
+         clock: IslandClock, showInFullScreen: Bool) {
         screenID = layout.screenID
-        viewModel = IslandViewModel(layout: layout)
+        viewModel = IslandViewModel(layout: layout, activities: activities)
         machine = IslandStateMachine(clock: clock, behavior: behavior)
         panel = IslandPanel(frame: layout.panelFrame)
         panel.setShowsInFullScreen(showInFullScreen)
@@ -94,7 +111,7 @@ final class IslandController {
         hostingView.onPointerMoved = { [weak self] in self?.pointerMoved(to: NSEvent.mouseLocation) }
         hostingView.isInsideShape = { [weak self] point in
             guard let self else { return false }
-            return self.viewModel.shape.contains(point)
+            return self.viewModel.shape.contains(point) || self.viewModel.satelliteContains(point)
         }
         viewModel.onClick = { [weak self] in self?.machine.clicked() }
         machine.onChange = { [weak self] old, new in
@@ -102,6 +119,7 @@ final class IslandController {
             Log.island.info("\(self.layout.style.rawValue, privacy: .public): \(String(describing: old), privacy: .public) → \(String(describing: new), privacy: .public)")
             self.viewModel.setPresentation(new)
             if new.isHidden { self.setPointerInside(false) }
+            self.refreshSatellite()
             self.onPresentationChange?()
         }
         panel.orderFrontRegardless()
@@ -116,6 +134,7 @@ final class IslandController {
         viewModel.layout = layout
         if title { viewModel.setTitle(mediaTitle) }
         panel.setFrame(layout.panelFrame, display: true)
+        refreshSatellite()
     }
 
     func setShowsInFullScreen(_ show: Bool) {
@@ -137,11 +156,27 @@ final class IslandController {
         var inside = !machine.presentation.isHidden && viewModel.shape.contains(local)
         // While dragging the progress bar the pointer may wander off the island: keep the drag.
         if pointerInside && NSEvent.pressedMouseButtons != 0 { inside = true }
+        updateSatellite(local: local)
         setPointerInside(inside)
     }
 
+    /// The capsule appeared, moved or went away: re-check what is under the pointer, so the panel
+    /// takes mouse events only over something visible.
+    func refreshSatellite() {
+        updateSatellite(local: layout.panelPoint(fromGlobal: NSEvent.mouseLocation))
+    }
+
+    /// The second capsule is separate: it never expands the island, it only takes clicks.
+    private func updateSatellite(local: CGPoint) {
+        satelliteInside = viewModel.satelliteContains(local)
+        if viewModel.satelliteHovering != satelliteInside { viewModel.satelliteHovering = satelliteInside }
+        panel.ignoresMouseEvents = !(pointerInside || satelliteInside)
+    }
+
+    private var satelliteInside = false
+
     private func setPointerInside(_ inside: Bool) {
-        panel.ignoresMouseEvents = !inside
+        panel.ignoresMouseEvents = !(inside || satelliteInside)
         guard inside != pointerInside else { return }
         pointerInside = inside
         if inside { machine.pointerEntered() } else { machine.pointerExited() }

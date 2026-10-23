@@ -81,6 +81,29 @@ struct SettingsView: View {
                 Toggle(tr("Показывать в полноэкранных приложениях", "Show in full-screen apps"), isOn: $settings.showInFullScreen)
             }
 
+            Section(tr("Живые активности", "Live activities")) {
+                Text(tr(
+                    "Вторая капсула рядом с островом, как в Dynamic Island. Таймер и секундомер запускаются из меню в строке меню.",
+                    "A second capsule beside the island, like Dynamic Island. Start the timer and stopwatch from the menu bar menu."))
+                    .font(.caption).foregroundStyle(.secondary)
+                Toggle(tr("Звук по окончании таймера", "Sound when the timer ends"), isOn: $settings.timerSound)
+                Toggle(isOn: $settings.showPowerActivity) {
+                    Text(tr("Зарядка: подключение, отключение, низкий заряд", "Power: plugged in, unplugged, low battery"))
+                    Text(tr("Только состояние батареи, без разрешений.", "Battery state only, no permissions."))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Toggle(isOn: $settings.showHeadphonesActivity) {
+                    Text(tr("Bluetooth-наушники стали выходом звука", "Bluetooth headphones became the sound output"))
+                    Text(tr("Показывается название устройства. Уровень заряда не читается.", "Shows the device name. The battery level is not read."))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Toggle(isOn: $settings.showTransferActivity) {
+                    Text(tr("Прогресс копирования и загрузки файлов", "File copy and download progress"))
+                    Text(tr("Следит за «Загрузками», «Рабочим столом», «Документами» и подключёнными томами. Только процент, без имён файлов. Экспериментально.", "Watches Downloads, Desktop, Documents and mounted volumes. Percent only, never file names. Experimental."))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
             Section(tr("Система", "System")) {
                 Toggle(tr("Открывать при входе", "Open at login"), isOn: $loginItem)
                     .onChange(of: loginItem) { _, enabled in
@@ -120,7 +143,7 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         // Fits a 13" MacBook; the form scrolls if a section grows.
-        .frame(width: 480, height: 680)
+        .frame(width: 480, height: 760)
     }
 
     private var audioNote: String {

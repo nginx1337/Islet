@@ -264,7 +264,9 @@ public enum IslandLayoutEngine {
         let expandedHeight = px.round(h + Metrics.expandedContentHeight * s)
         let margin = Metrics.shadowMargin
 
-        let panelWidth = px.round(expandedWidth + 2 * flare + 2 * margin)
+        // Room on both sides for the second capsule (live activities); keeps the panel centred.
+        let reserve = SatellitePlacement.reserve(scale: s)
+        let panelWidth = px.round(expandedWidth + 2 * flare + 2 * margin + 2 * reserve)
         let panelHeight = px.round(expandedHeight + margin)
         // Centre the panel on the notch, not on the screen: notches may be off-centre on future hardware.
         let notchMidX = screen.frame.minX + notch.midX
@@ -311,7 +313,8 @@ public enum IslandLayoutEngine {
         let expandedHeight = px.round(Metrics.expandedContentHeight * s)
         let margin = Metrics.shadowMargin
 
-        let panelWidth = px.round(expandedWidth + 2 * margin)
+        let reserve = SatellitePlacement.reserve(scale: s)
+        let panelWidth = px.round(expandedWidth + 2 * margin + 2 * reserve)
         let panelHeight = px.round(top + expandedHeight + margin)
         let panelFrame = CGRect(
             x: px.round(screen.frame.midX - panelWidth / 2), y: screen.frame.maxY - panelHeight,

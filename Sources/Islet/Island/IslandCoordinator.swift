@@ -5,6 +5,7 @@ import IsletCore
 /// feeds them media updates and tracks the pointer while any island is visible.
 final class IslandCoordinator {
     private let media: NowPlayingModel
+    private let activities: ActivityModel
     private let settings: AppSettings
     private let clock: IslandClock
     private(set) var controllers: [String: IslandController] = [:]
@@ -14,8 +15,9 @@ final class IslandCoordinator {
     /// Any island changed what it shows.
     var onPresentationChange: (() -> Void)?
 
-    init(media: NowPlayingModel, settings: AppSettings, clock: IslandClock) {
+    init(media: NowPlayingModel, activities: ActivityModel, settings: AppSettings, clock: IslandClock) {
         self.media = media
+        self.activities = activities
         self.settings = settings
         self.clock = clock
     }
@@ -54,7 +56,7 @@ final class IslandCoordinator {
                 controller.apply(layout: layout)
             } else {
                 let controller = IslandController(
-                    layout: layout, media: media, behavior: settings.behavior, clock: clock,
+                    layout: layout, media: media, activities: activities, behavior: settings.behavior, clock: clock,
                     showInFullScreen: settings.showInFullScreen)
                 controller.onPresentationChange = { [weak self] in self?.updateMonitor() }
                 controllers[layout.screenID] = controller
@@ -86,12 +88,19 @@ final class IslandCoordinator {
 
     var anyVisible: Bool { controllers.values.contains { !$0.presentation.isHidden } }
 
+    /// The second capsule appeared or went away: pointer tracking follows, and every panel re-checks
+    /// whether it should take mouse events.
+    func activitiesChanged() {
+        updateMonitor()
+        for controller in controllers.values { controller.refreshSatellite() }
+    }
+
     // MARK: Pointer tracking
 
     /// A global mouse-moved monitor exists only while an island is visible; hidden islands cost nothing.
     private func updateMonitor() {
         onPresentationChange?()
-        if anyVisible {
+        if anyVisible || activities.current != nil {
             guard globalMonitor == nil else { return }
             globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .leftMouseUp]) { [weak self] _ in
                 MainActor.assumeIsolated { self?.pointerMoved() }

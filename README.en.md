@@ -30,6 +30,17 @@ On a MacBook the island lives in the notch and grows out of it. On an external m
 - "Back" after 3 seconds restarts the track. If the player has no next track (a single video in a browser), "forward" skips 15 s and both buttons switch to ±15 s.
 - Hidden in full-screen apps by default.
 
+## Live activities
+
+Like Dynamic Island: a second capsule appears beside the island. The island shows music; the capsule shows one activity at a time (more important wins):
+
+- **Timer** and **stopwatch**, started from the menu bar menu. Tap the capsule to pause or resume; hovering shows pause and cancel buttons. A finished timer rings (sound can be turned off in Settings) and goes away after 10 seconds.
+- **Power**: charger plugged in or unplugged, battery down to 20 %.
+- **Bluetooth headphones** became the sound output (shows the device name).
+- **File progress** (off by default, experimental): copies and downloads, percent only.
+
+Everything is local: no network, no new permissions, and every source has its own switch in Settings. Details in [SECURITY.md](SECURITY.md).
+
 ## Build and run
 
 Requires macOS 27 and the Command Line Tools (Xcode is optional). No paid developer account.

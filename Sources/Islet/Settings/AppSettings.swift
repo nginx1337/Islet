@@ -22,6 +22,11 @@ final class AppSettings {
     var showInFullScreen: Bool { didSet { save(showInFullScreen, "showInFullScreen") } }
     var compactTitle: Bool { didSet { save(compactTitle, "compactTitle") } }
     var liveEqualizer: Bool { didSet { save(liveEqualizer, "liveEqualizer") } }
+    var showPowerActivity: Bool { didSet { save(showPowerActivity, "showPowerActivity") } }
+    var showHeadphonesActivity: Bool { didSet { save(showHeadphonesActivity, "showHeadphonesActivity") } }
+    /// Off by default: it watches Downloads, Desktop, Documents and mounted volumes.
+    var showTransferActivity: Bool { didSet { save(showTransferActivity, "showTransferActivity") } }
+    var timerSound: Bool { didSet { save(timerSound, "timerSound") } }
     var hotKey: HotKeyCombo? {
         didSet {
             if let hotKey, let data = try? JSONEncoder().encode(hotKey) {
@@ -53,6 +58,10 @@ final class AppSettings {
         showInFullScreen = defaults.object(forKey: "showInFullScreen") as? Bool ?? false
         compactTitle = defaults.object(forKey: "compactTitle") as? Bool ?? false
         liveEqualizer = defaults.object(forKey: "liveEqualizer") as? Bool ?? true
+        showPowerActivity = defaults.object(forKey: "showPowerActivity") as? Bool ?? true
+        showHeadphonesActivity = defaults.object(forKey: "showHeadphonesActivity") as? Bool ?? true
+        showTransferActivity = defaults.object(forKey: "showTransferActivity") as? Bool ?? false
+        timerSound = defaults.object(forKey: "timerSound") as? Bool ?? true
         if let data = defaults.data(forKey: "hotKey") {
             hotKey = data.isEmpty ? nil : (try? JSONDecoder().decode(HotKeyCombo.self, from: data))?.normalized()
         } else {

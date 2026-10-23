@@ -22,7 +22,26 @@ struct IslandRootView: View {
             .offset(x: shape.frame.minX, y: shape.frame.minY)
         }
         .frame(width: layout.panelFrame.width, height: layout.panelFrame.height, alignment: .topLeading)
+        .overlay(alignment: .topLeading) { satellite }
         .environment(\.colorScheme, .dark)
+    }
+}
+
+extension IslandRootView {
+    /// The second capsule beside the island: pops out of the island's edge and slides along with it.
+    @ViewBuilder
+    var satellite: some View {
+        ZStack(alignment: .topLeading) {
+            if let activity = model.activities.current, let frame = model.satelliteFrame {
+                SatelliteView(activity: activity, activities: model.activities, hovering: model.satelliteHovering,
+                              style: model.layout.style, scale: model.layout.scale)
+                    .frame(width: frame.width, height: frame.height)
+                    .offset(x: frame.minX, y: frame.minY)
+                    .transition(.scale(scale: 0.5, anchor: .leading).combined(with: .opacity))
+            }
+        }
+        .frame(width: model.layout.panelFrame.width, height: model.layout.panelFrame.height, alignment: .topLeading)
+        .animation(.spring(response: 0.42, dampingFraction: 0.78), value: model.activities.current?.kind)
     }
 }
 
