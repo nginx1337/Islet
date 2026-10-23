@@ -9,7 +9,7 @@ On a MacBook the island lives in the notch and grows out of it. On an external m
 
 [Русская версия](README.md)
 
-<img src="docs/overview.png" width="100%" alt="Islet: Swift 6, SwiftUI, Core Animation, Core Audio. About 5,900 lines, no telemetry, 95 tests, 0% idle CPU. Hover to expand; the bars follow the real sound; click the title to open the player; ⌃⌥⌘N expands and collapses.">
+<img src="docs/overview.png" width="100%" alt="Islet: Swift 6, SwiftUI, Core Animation, Core Audio. About 7,500 lines, no telemetry, 119 tests, 0% idle CPU. Hover to expand; the bars follow the real sound; click the title to open the player; ⌃⌥⌘N expands and collapses.">
 
 | In the MacBook notch | On an external monitor |
 |---|---|
@@ -98,16 +98,18 @@ Details, permissions and how to report a vulnerability: [SECURITY.md](SECURITY.m
 
 | Part | Where |
 |---|---|
-| Window-free logic: adapter stream parsing, state machine, geometry, position interpolation, marquee, artwork colour, source failover | `Sources/IsletCore` (+ tests) |
+| Window-free logic: adapter stream parsing, state machine, geometry, position interpolation, marquee, artwork colour, source failover, live activities (timer, stopwatch, queue, capsule placement) | `Sources/IsletCore` (+ tests) |
 | Sources: adapter via `/usr/bin/perl`, Music/Spotify fallback | `Sources/Islet/Sources` |
 | Panels (non-activating `NSPanel`, one per screen), pointer tracking, display changes | `Sources/Islet/Island` |
 | SwiftUI island: notch shape with concave top corners, pill, spring animations, Core Animation equaliser | `Sources/Islet/Island` |
+| Live activity sources: battery (IOKit), sound output (Core Audio), file progress (`Progress`) | `Sources/Islet/Activities` |
+| Activity capsule beside the island; every animation in one place | `Sources/Islet/Island/SatelliteView.swift`, `IslandMotion.swift` |
 | Menu bar item, settings, hotkey, login item | `Sources/Islet/Menu`, `Settings`, `System` |
 | MediaRemote adapter (unmodified, BSD-3-Clause) | `Vendor/mediaremote-adapter`, built by `scripts/build-adapter.sh` |
 
-The style is chosen per screen: a screen with a notch (`safeAreaInsets.top > 0`, notch width from `auxiliaryTopLeftArea`/`auxiliaryTopRightArea`) gets the notch style, every other screen the pill. The layout is a pure function of screen descriptions and settings, recomputed when a monitor is plugged in, the lid closes or the resolution changes. On monitors the menu bar height comes from `frame` vs `visibleFrame`: on macOS 27 `NSStatusBar.system.thickness` returns 22 pt while the bar is 30 pt, so it is only the fallback for an auto-hidden menu bar.
+The style is chosen per screen: a screen with a notch (`safeAreaInsets.top > 0`, notch width from `auxiliaryTopLeftArea`/`auxiliaryTopRightArea`) gets the notch style, every other screen the pill. The "Look" setting can override that: "Island" everywhere (below the menu bar on a notched screen) or "Notch" everywhere (a compact drawn notch at the top centre where there is none). The layout is a pure function of screen descriptions and settings, recomputed when a monitor is plugged in, the lid closes or the resolution changes. On monitors the menu bar height comes from `frame` vs `visibleFrame`: on macOS 27 `NSStatusBar.system.thickness` returns 22 pt while the bar is 30 pt, so it is only the fallback for an auto-hidden menu bar.
 
-Tests (Swift Testing, 95): JSON stream parsing (normal, empty, broken, split into chunks), every state-machine transition with an injected clock, frames for a notched screen, 1× and 2× monitors, two screens and configuration changes, interpolation, marquee, dominant colour on synthetic images, source failover, bars on synthetic tones (bass, mids, highs, silence), back/forward buttons.
+Tests (Swift Testing, 119): JSON stream parsing (normal, empty, broken, split into chunks), every state-machine transition with an injected clock, frames for a notched screen, 1× and 2× monitors, two screens and configuration changes, interpolation, marquee, dominant colour on synthetic images, source failover, bars on synthetic tones (bass, mids, highs, silence), back/forward buttons, timer and stopwatch (pause, finish, limits), activity priorities, capsule placement in every look and scale, the drawn notch. `scripts/audit.sh` checks the sources for network, program launch and permissions.
 
 ## Limitations
 
@@ -115,6 +117,9 @@ Tests (Swift Testing, 95): JSON stream parsing (normal, empty, broken, split int
 - At launch Islet runs the adapter's health check (`test`) once. If nothing is playing at that moment, it briefly creates an untitled "Now Playing" entry; the island ignores it.
 - Browsers do not always provide artwork (YouTube in Safari, for example). The browser's icon is shown instead.
 - The notch style was checked with renders and tests. Live testing on this Mac used a 1440p monitor (1×) with the MacBook lid closed.
+- Headphones: only the device name is shown; the AirPods battery level is not read (that would need Bluetooth permission or a private API).
+- File progress is experimental: only operations that an app reports through `Progress` are shown, and only in Downloads, Desktop, Documents and mounted volumes.
+- `docs/overview.png` still shows the old numbers (5,900 lines, 95 tests).
 - Ad-hoc signature. After a rebuild macOS may ask for Automation permission again. To distribute, sign with a Developer ID and notarize.
 
 ## Debugging
