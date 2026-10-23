@@ -34,7 +34,8 @@ extension IslandRootView {
         ZStack(alignment: .topLeading) {
             if let activity = model.activities.current, let frame = model.satelliteFrame {
                 SatelliteView(activity: activity, activities: model.activities, hovering: model.satelliteHovering,
-                              style: model.layout.style, scale: model.layout.scale, height: frame.height)
+                              style: model.layout.style, scale: model.layout.scale, height: frame.height,
+                              outline: model.layout.outline)
                     .frame(width: frame.width, height: frame.height)
                     .offset(x: frame.minX, y: frame.minY)
                     .transition(.asymmetric(
@@ -46,6 +47,12 @@ extension IslandRootView {
         .animation(IslandMotion.satellite, value: model.activities.current?.kind)
         .animation(IslandMotion.satellite, value: model.satelliteHovering)
     }
+}
+
+/// The faint light edge around the black shapes, as on the iPhone over a dark background.
+enum IslandOutline {
+    static let width: CGFloat = 1
+    static let opacity: Double = 0.17
 }
 
 /// Where things go inside the compact island.
@@ -63,7 +70,9 @@ struct CompactMetrics {
         size = frame.size
         let h = frame.height
         let inset = IslandLayout.titleInset * layout.scale
-        art = max(14, min(h - 10, 24))
+        art = (layout.style == .floating || layout.isDrawnNotch)
+            ? max(14, min((h * 0.64).rounded(), 24))
+            : max(14, min(h - 10, 24))
         switch layout.style {
         case .notch where layout.isDrawnNotch:
             ear = layout.compactEar
@@ -78,8 +87,15 @@ struct CompactMetrics {
             titleRect = layout.compactTitle ? CGRect(x: ear + inset, y: 0, width: max(0, frame.width - 2 * (ear + inset)), height: h) : nil
         }
         titleFontSize = IslandViewModel.compactTitleFontSize(for: layout)
-        artCenter = CGPoint(x: ear / 2, y: h / 2)
-        barsCenter = CGPoint(x: frame.width - ear / 2, y: h / 2)
+        if layout.style == .floating || layout.isDrawnNotch {
+            // The artwork and the bars sit on the centres of the rounded ends, so the gap around
+            // them is the same at the top, the bottom and the side.
+            artCenter = CGPoint(x: h / 2, y: h / 2)
+            barsCenter = CGPoint(x: frame.width - h / 2, y: h / 2)
+        } else {
+            artCenter = CGPoint(x: ear / 2, y: h / 2)
+            barsCenter = CGPoint(x: frame.width - ear / 2, y: h / 2)
+        }
     }
 }
 
@@ -167,10 +183,19 @@ struct IslandBody: View {
                 case .notch:
                     NotchShape(flare: shape.topFlare, bottomRadius: shape.cornerRadius)
                         .fill(.black)
+                        .overlay {
+                            // Like the iPhone on a dark wallpaper: a faint edge, along the sides and the bottom only.
+                            NotchShape(flare: shape.topFlare, bottomRadius: shape.cornerRadius, closed: false)
+                                .stroke(Color.white.opacity(outlineOpacity), lineWidth: IslandOutline.width)
+                        }
                         .padding(.horizontal, -shape.topFlare)
                 case .floating:
                     RoundedRectangle(cornerRadius: shape.cornerRadius, style: .continuous)
                         .fill(.black)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: shape.cornerRadius, style: .continuous)
+                                .strokeBorder(Color.white.opacity(outlineOpacity), lineWidth: IslandOutline.width)
+                        }
                         .shadow(color: .black.opacity(presentation.isHidden ? 0 : 0.3), radius: 10, y: 4)
                 }
             }
@@ -179,6 +204,10 @@ struct IslandBody: View {
             // Hiding: shrinks first, then dissolves.
             .opacity(shape.opacity)
             .animation(shape.opacity > 0 ? .easeOut(duration: 0.12) : .easeIn(duration: 0.16).delay(0.14), value: shape.opacity)
+    }
+
+    private var outlineOpacity: Double {
+        layout.outline && !presentation.isHidden ? IslandOutline.opacity : 0
     }
 
     private var clip: AnyShape {
@@ -213,7 +242,7 @@ struct CompactLayer: View {
                     .position(x: title.midX, y: title.midY)
             }
             EqualizerView(color: accent.nsColor, active: playing)
-                .frame(width: metrics.art * 0.72, height: metrics.art * 0.6)
+                .frame(width: metrics.art * 0.95, height: metrics.art * 0.72)
                 .position(metrics.barsCenter)
         }
         .contentShape(Rectangle())

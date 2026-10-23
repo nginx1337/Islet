@@ -155,7 +155,7 @@ struct GeometryTests {
         let short = layout.compact(fittingTitle: 40)
         #expect(short.frame.width == 150, "never narrower than without a title")
         let medium = layout.compact(fittingTitle: 140)
-        #expect(medium.frame.width == 236, "two ears of 36 + title 140 + padding 12 + a 6 pt gap on each side")
+        #expect(medium.frame.width == 224, "two ears of 30 + title 140 + padding 12 + a 6 pt gap on each side")
         #expect(medium.frame.midX == layout.compact.frame.midX, "stays centred")
         #expect(layout.compact(fittingTitle: 900) == layout.compact, "long titles get the full width and scroll")
         #expect(layout.compact(fittingTitle: nil) == layout.compact)
@@ -240,6 +240,11 @@ struct GeometryTests {
 
     // MARK: Style preference
 
+    @Test func outlineFollowsTheSetting() {
+        #expect(IslandLayoutEngine.layout(for: Self.monitor1x, settings: LayoutSettings()).outline)
+        #expect(!IslandLayoutEngine.layout(for: Self.macBook, settings: LayoutSettings(outline: false)).outline)
+    }
+
     @Test func automaticKeepsTheScreenDefault() {
         let settings = LayoutSettings(stylePreference: .automatic)
         #expect(IslandLayoutEngine.layout(for: Self.macBook, settings: settings).style == .notch)
@@ -270,6 +275,7 @@ struct GeometryTests {
         #expect(layout.isDrawnNotch)
         #expect(layout.notchWidth == 0, "nothing is hidden in the middle")
         #expect(layout.compact.frame.width < 200, "a compact tab, not a long bar")
+        #expect(layout.compactEar == layout.compact.frame.height, "round ends as wide as they are tall")
         #expect(layout.hidden.opacity == 0, "a drawn notch has nothing to hide in")
         #expect(layout.expanded.frame.height > layout.compact.frame.height + 80)
         let bounds = CGRect(origin: .zero, size: layout.panelFrame.size)

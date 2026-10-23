@@ -9,7 +9,7 @@ On a MacBook the island lives in the notch and grows out of it. On an external m
 
 [Русская версия](README.md)
 
-<img src="docs/overview.png" width="100%" alt="Islet: Swift 6, SwiftUI, Core Animation, Core Audio. About 7,500 lines, no telemetry, 119 tests, 0% idle CPU. Hover to expand; the bars follow the real sound; click the title to open the player; ⌃⌥⌘N expands and collapses.">
+<img src="docs/overview.png" width="100%" alt="Islet: Swift 6, SwiftUI, Core Animation, Core Audio. About 7,500 lines, no telemetry, 123 tests, 0% idle CPU. Hover to expand; the bars follow the real sound; click the title to open the player; ⌃⌥⌘N expands and collapses.">
 
 | In the MacBook notch | On an external monitor |
 |---|---|
@@ -20,7 +20,7 @@ On a MacBook the island lives in the notch and grows out of it. On an external m
 ## Behaviour
 
 - **Nothing playing**: hidden. In the notch it matches the notch and is invisible; on a monitor it shrinks to a point and fades out.
-- **Playing**: compact, with artwork and equaliser. The four bars show the Mac's real sound: bass, low mids, mids, highs. Without System Audio Recording permission they just animate.
+- **Playing**: compact, with artwork and equaliser. Six bars, as on the iPhone, show the Mac's real sound: bass on the left, highs on the right. Without System Audio Recording permission they just animate.
 - **Title in the compact island** (a setting): between the artwork and the bars, tinted from the artwork. A long title scrolls and fades out at the edges.
 - **New track**: expands by itself for 3 seconds.
 - **Hover or click**: expands; collapses 0.4 s after the pointer leaves.
@@ -33,6 +33,10 @@ On a MacBook the island lives in the notch and grows out of it. On an external m
 ## Look: island or notch
 
 In Settings (**Displays → Look**) choose **Auto** (notch on a MacBook with a notch, a separate island on other screens), **Island** (a separate pill on any screen; on a MacBook with a notch it sits below the menu bar) or **Notch** (a shape hanging from the top edge; where there is no notch it is drawn at the top centre).
+
+## Outline
+
+Like the iPhone's island over a dark background: a thin light edge around the island, the notch and the activity capsule, so they do not disappear on a black wallpaper or a dark menu bar. On the notch it runs along the sides and the bottom only. Turn it off in Settings (**Displays → Thin outline**).
 
 ## Live activities
 
@@ -52,10 +56,13 @@ Requires macOS 27 and the Command Line Tools (Xcode is optional). No paid develo
 ```bash
 scripts/build-app.sh            # release → build/Islet.app
 scripts/install.sh              # build and install into /Applications, replacing the old version
+scripts/update.sh               # download the latest version from GitHub, check, build and install it
 scripts/audit.sh                # security audit of the sources
 swift test                      # core unit tests
 scripts/test.sh                 # tests, app bundle and launch self-check
 ```
+
+Updates: Settings (**Updates → Check for updates**). It checks only when you press it. If there is a new version, "Update…" opens Terminal, which shows the version, checks it, builds it from source and replaces the old one.
 
 Install: `scripts/install.sh` builds the app, quits the running copy, moves the old version out of Applications into the Trash (so it can be put back), installs the new one and starts it. Settings are kept. By hand: drag `build/Islet.app` into Applications and open it. If a new copy starts while an old one is running, the old one quits by itself. The icon appears in the menu bar (there is no Dock icon). Settings are in that menu, or open Islet again from Finder.
 
@@ -90,7 +97,7 @@ The position is computed, not polled: `elapsed + rate × (now − timestamp)`. T
 
 Details, permissions and how to report a vulnerability: [SECURITY.md](SECURITY.md).
 
-- No telemetry, no analytics. The only network request is downloading Spotify artwork in fallback mode (Spotify provides it as a URL). Image only, no cookies, cached.
+- No telemetry, no analytics. There are two network requests: the Spotify artwork download in fallback mode (Spotify provides it as a URL; image only, no cookies, cached) and the update check, only when you press its button.
 - About 0 % CPU when idle. Audio capture and analysis (1024-point FFT, Accelerate) run only while the island is visible and a track plays: about 1–2 % CPU. The bars are Core Animation layers. A hidden or paused island has no audio capture, no timers and no pointer tracking.
 - No third-party dependencies apart from the bundled adapter.
 
@@ -109,7 +116,7 @@ Details, permissions and how to report a vulnerability: [SECURITY.md](SECURITY.m
 
 The style is chosen per screen: a screen with a notch (`safeAreaInsets.top > 0`, notch width from `auxiliaryTopLeftArea`/`auxiliaryTopRightArea`) gets the notch style, every other screen the pill. The "Look" setting can override that: "Island" everywhere (below the menu bar on a notched screen) or "Notch" everywhere (a compact drawn notch at the top centre where there is none). The layout is a pure function of screen descriptions and settings, recomputed when a monitor is plugged in, the lid closes or the resolution changes. On monitors the menu bar height comes from `frame` vs `visibleFrame`: on macOS 27 `NSStatusBar.system.thickness` returns 22 pt while the bar is 30 pt, so it is only the fallback for an auto-hidden menu bar.
 
-Tests (Swift Testing, 119): JSON stream parsing (normal, empty, broken, split into chunks), every state-machine transition with an injected clock, frames for a notched screen, 1× and 2× monitors, two screens and configuration changes, interpolation, marquee, dominant colour on synthetic images, source failover, bars on synthetic tones (bass, mids, highs, silence), back/forward buttons, timer and stopwatch (pause, finish, limits), activity priorities, capsule placement in every look and scale, the drawn notch. `scripts/audit.sh` checks the sources for network, program launch and permissions.
+Tests (Swift Testing, 123): JSON stream parsing (normal, empty, broken, split into chunks), every state-machine transition with an injected clock, frames for a notched screen, 1× and 2× monitors, two screens and configuration changes, interpolation, marquee, dominant colour on synthetic images, source failover, bars on synthetic tones (bass, mids, highs, silence), back/forward buttons, timer and stopwatch (pause, finish, limits), activity priorities, capsule placement in every look and scale, the drawn notch. `scripts/audit.sh` checks the sources for network, program launch and permissions.
 
 ## Limitations
 

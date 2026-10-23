@@ -32,6 +32,7 @@ struct SettingsView: View {
     @Bindable var settings: AppSettings
     let media: NowPlayingModel
     @State private var audio = AudioStatusModel.shared
+    @State private var updates = UpdateChecker()
     @State private var loginItem = LoginItem.isEnabled
     @State private var loginMessage: String?
 
@@ -47,6 +48,7 @@ struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
                 Text(styleNote).font(.caption).foregroundStyle(.secondary)
+                Toggle(tr("Тонкая обводка, как на iPhone", "Thin outline, as on the iPhone"), isOn: $settings.islandOutline)
                 Picker(tr("Показывать", "Show on"), selection: $settings.screenSelection) {
                     Text(tr("На всех экранах", "All displays")).tag(ScreenSelection.all)
                     Text(tr("Только на основном", "Primary display only")).tag(ScreenSelection.main)
@@ -128,6 +130,26 @@ struct SettingsView: View {
                 }
             }
 
+            Section(tr("Обновления", "Updates")) {
+                LabeledContent(tr("Эта версия", "This version")) {
+                    Text(updates.currentCommit.map { String($0.prefix(7)) } ?? tr("без номера", "unknown"))
+                        .monospaced().foregroundStyle(.secondary)
+                }
+                HStack {
+                    Text(updateText).font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    if case .available = updates.state {
+                        Button(tr("Обновить…", "Update…")) { updates.update() }
+                    }
+                    Button(tr("Проверить обновления", "Check for updates")) { updates.check() }
+                        .disabled(updates.state == .checking)
+                }
+                Text(tr(
+                    "Только по кнопке: один запрос к GitHub. «Обновить…» открывает Терминал: там видно, какая версия ставится, она проверяется, собирается из исходников на этом Mac и заменяет старую.",
+                    "Only when you press the button: one request to GitHub. \"Update…\" opens Terminal, which shows the version, checks it, builds it from source on this Mac and replaces the old one."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
             Section(tr("Источник данных", "Data source")) {
                 HStack {
                     Circle().fill(statusColor).frame(width: 8, height: 8)
@@ -141,8 +163,8 @@ struct SettingsView: View {
 
             Section {
                 Text(tr(
-                    "Islet не собирает статистику и не ходит в сеть. Исключение — обложки Spotify в запасном режиме.",
-                    "Islet collects nothing and stays offline, except Spotify artwork in fallback mode."))
+                    "Islet не собирает статистику и не ходит в сеть. Исключения — обложки Spotify в запасном режиме и проверка обновлений по кнопке.",
+                    "Islet collects nothing and stays offline, except Spotify artwork in fallback mode and the update check when you press it."))
                     .font(.caption).foregroundStyle(.secondary)
                 Text("Islet \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev") · MIT · mediaremote-adapter © Jonas van den Berg (BSD-3-Clause)")
                     .font(.caption).foregroundStyle(.tertiary)
@@ -161,6 +183,17 @@ struct SettingsView: View {
             tr("Отдельная капсула на всех экранах. На MacBook с вырезом она под строкой меню.", "A separate pill on every screen. On a MacBook with a notch it sits below the menu bar.")
         case .notch:
             tr("«Чёлка» на всех экранах. Где выреза нет, она нарисована сверху по центру.", "The notch look on every screen. Where there is no notch it is drawn at the top centre.")
+        }
+    }
+
+    private var updateText: String {
+        switch updates.state {
+        case .idle: ""
+        case .checking: tr("Проверяю…", "Checking…")
+        case .upToDate: tr("Это последняя версия.", "This is the latest version.")
+        case .available(let sha, let date, let title):
+            tr("Есть новая версия: ", "New version: ") + "\(sha.prefix(7)) · \(date)" + (title.isEmpty ? "" : " · \(title)")
+        case .failed(let why): tr("Не удалось проверить: ", "Could not check: ") + why
         }
     }
 
