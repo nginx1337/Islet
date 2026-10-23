@@ -138,15 +138,18 @@ struct SettingsView: View {
                 HStack {
                     Text(updateText).font(.caption).foregroundStyle(.secondary)
                     Spacer()
-                    if case .available = updates.state {
+                    switch updates.state {
+                    case .available, .commandCopied:
                         Button(tr("Обновить…", "Update…")) { updates.update() }
+                    default:
+                        EmptyView()
                     }
                     Button(tr("Проверить обновления", "Check for updates")) { updates.check() }
                         .disabled(updates.state == .checking)
                 }
                 Text(tr(
-                    "Только по кнопке: один запрос к GitHub. «Обновить…» открывает Терминал: там видно, какая версия ставится, она проверяется, собирается из исходников на этом Mac и заменяет старую.",
-                    "Only when you press the button: one request to GitHub. \"Update…\" opens Terminal, which shows the version, checks it, builds it from source on this Mac and replaces the old one."))
+                    "Только по кнопке: один запрос к GitHub. «Обновить…» копирует команду и открывает Терминал: вставьте её (⌘V) и нажмите Return. Там видно, какая версия ставится; она проверяется, собирается из исходников на этом Mac и заменяет старую.",
+                    "Only when you press the button: one request to GitHub. \"Update…\" copies a command and opens Terminal: paste it (⌘V) and press Return. It shows the version, checks it, builds it from source on this Mac and replaces the old one."))
                     .font(.caption).foregroundStyle(.secondary)
             }
 
@@ -193,6 +196,7 @@ struct SettingsView: View {
         case .upToDate: tr("Это последняя версия.", "This is the latest version.")
         case .available(let sha, let date, let title):
             tr("Есть новая версия: ", "New version: ") + "\(sha.prefix(7)) · \(date)" + (title.isEmpty ? "" : " · \(title)")
+        case .commandCopied: tr("Команда скопирована: в Терминале нажмите ⌘V и Return.", "Command copied: in Terminal press ⌘V and Return.")
         case .failed(let why): tr("Не удалось проверить: ", "Could not check: ") + why
         }
     }

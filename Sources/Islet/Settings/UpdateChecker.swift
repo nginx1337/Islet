@@ -5,8 +5,9 @@ import Observation
 
 /// "Check for updates" in Settings. Nothing runs on its own: only the button makes one https request
 /// to the GitHub API for the latest commit on main and compares it with the commit this build was made
-/// from. "Update…" opens Terminal with the bundled update script, which shows the version, asks, and
-/// builds the new version from source on this Mac.
+/// from. "Update…" copies the command that runs the bundled update script and opens Terminal: the user
+/// pastes it, sees the version, confirms, and the new version is built from source on this Mac.
+/// (Gatekeeper refuses to open an unsigned `.command` file directly, but not a script run from a shell.)
 @Observable
 final class UpdateChecker {
     enum State: Equatable {
@@ -14,6 +15,8 @@ final class UpdateChecker {
         case checking
         case upToDate
         case available(sha: String, date: String, title: String)
+        /// The update command is on the clipboard and Terminal is open.
+        case commandCopied
         case failed(String)
     }
 
@@ -42,13 +45,24 @@ final class UpdateChecker {
         }
     }
 
-    /// Opens Terminal with the update script, so every step is visible and can be stopped.
+    /// The command that runs the update script, quoted for the shell.
+    var updateCommand: String? {
+        Bundle.main.url(forResource: "update", withExtension: "command").map { url in
+            "'" + url.path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        }
+    }
+
+    /// Copies the update command and opens Terminal, so every step is visible and can be stopped.
     func update() {
-        guard let script = Bundle.main.url(forResource: "update", withExtension: "command") else {
+        guard let command = updateCommand else {
             state = .failed(tr("В этой сборке нет скрипта обновления", "This build has no update script"))
             return
         }
-        NSWorkspace.shared.open(script)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(command, forType: .string)
+        let terminal = URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app")
+        NSWorkspace.shared.openApplication(at: terminal, configuration: NSWorkspace.OpenConfiguration())
+        state = .commandCopied
     }
 
     private func fetchLatest() async -> State {

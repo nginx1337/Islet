@@ -62,7 +62,7 @@ swift test                      # core unit tests
 scripts/test.sh                 # tests, app bundle and launch self-check
 ```
 
-Updates: Settings (**Updates → Check for updates**). It checks only when you press it. If there is a new version, "Update…" opens Terminal, which shows the version, checks it, builds it from source and replaces the old one.
+Updates: Settings (**Updates → Check for updates**). It checks only when you press it. If there is a new version, "Update…" copies a command and opens Terminal: paste it (⌘V) and press Return. It shows the version, checks it, builds it from source and replaces the old one.
 
 Install: `scripts/install.sh` builds the app, quits the running copy, moves the old version out of Applications into the Trash (so it can be put back), installs the new one and starts it. Settings are kept. By hand: drag `build/Islet.app` into Applications and open it. If a new copy starts while an old one is running, the old one quits by itself. The icon appears in the menu bar (there is no Dock icon). Settings are in that menu, or open Islet again from Finder.
 
