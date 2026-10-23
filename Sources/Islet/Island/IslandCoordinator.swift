@@ -34,13 +34,15 @@ final class IslandCoordinator {
         rebuild()
         // A local monitor sees only events sent to Islet's own windows, so it never reads other apps' clicks.
         hideMonitor = NSEvent.addLocalMonitorForEvents(matching: .otherMouseDown) { [weak self] event in
-            MainActor.assumeIsolated { () -> NSEvent? in
-                guard let self, event.buttonNumber == 2, !self.isHiddenByUser else { return event }
+            let isWheel = event.buttonNumber == 2
+            let hid = MainActor.assumeIsolated { () -> Bool in
+                guard let self, isWheel, !self.isHiddenByUser else { return false }
                 let location = NSEvent.mouseLocation
-                guard self.controllers.values.contains(where: { $0.isOnIsland(location) }) else { return event }
+                guard self.controllers.values.contains(where: { $0.isOnIsland(location) }) else { return false }
                 self.setHiddenByUser(true)
-                return nil
+                return true
             }
+            return hid ? nil : event
         }
         // Monitor plugged in or out, lid closed, resolution or arrangement changed.
         screenObserver = NotificationCenter.default.addObserver(
@@ -117,8 +119,9 @@ final class IslandCoordinator {
     private func installRestoreMonitor() {
         guard restoreMonitor == nil else { return }
         restoreMonitor = NSEvent.addGlobalMonitorForEvents(matching: .otherMouseDown) { [weak self] event in
+            let isWheel = event.buttonNumber == 2
             MainActor.assumeIsolated {
-                guard let self, event.buttonNumber == 2 else { return }
+                guard let self, isWheel else { return }
                 let location = NSEvent.mouseLocation
                 if self.controllers.values.contains(where: { $0.isRestoreSpot(location) }) {
                     self.setHiddenByUser(false)
