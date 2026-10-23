@@ -38,16 +38,20 @@ usage=$(grep -o '<key>NS[A-Za-z]*UsageDescription</key>' Resources/Info.plist | 
 
 # 2. Network: only the Spotify artwork download, over an ephemeral session, https only.
 only_in 'URLSession|URLRequest|NWConnection|NWPathMonitor|CFNetwork|WKWebView|import WebKit' \
-    'Sources/Islet/App/NowPlayingModel.swift Sources/Islet/Settings/UpdateChecker.swift' 'network API'
+    'Sources/Islet/App/NowPlayingModel.swift' 'network API'
 nowhere 'http://' 'plain http URL'
-# The update check talks to the GitHub API only, and the update script to GitHub's API and source archives.
-hosts=$(grep -oE 'https://[A-Za-z0-9.-]+' Sources/Islet/Settings/UpdateChecker.swift | sort -u | tr '\n' ' ')
-[ "$hosts" = "https://api.github.com " ] || fail "UpdateChecker contacts: $hosts"
-hosts=$(grep -oE 'https?://[A-Za-z0-9.-]+' scripts/update.sh | sort -u | tr '\n' ' ')
-[ "$hosts" = "https://api.github.com https://codeload.github.com " ] || fail "update.sh contacts: $hosts"
-if grep -nE '\b(Timer|scheduledTimer|asyncAfter|BGTask)\b' Sources/Islet/Settings/UpdateChecker.swift >/dev/null; then
-    fail "UpdateChecker must only run when the button is pressed"
+
+# App Transport Security stays on: no exceptions for plain http or weak TLS.
+if grep -nE 'NSAppTransportSecurity|NSAllowsArbitraryLoads|NSExceptionDomains|NSAllowsLocalNetworking' Resources/Info.plist >/dev/null; then
+    fail "Info.plist weakens App Transport Security"
 fi
+# The scripts build and install from the local source; none of them downloads anything.
+for script in scripts/*.sh; do
+    [ "$script" = "scripts/audit.sh" ] && continue # its own patterns
+    if grep -nE '\b(curl|wget|nc|ftp|scp|rsync|git (clone|pull|fetch))\b' "$script" >/dev/null; then
+        fail "$script reaches the network"
+    fi
+done
 
 # 3. Other programs: the adapter runs through /usr/bin/perl, fallback mode talks to Music and Spotify.
 only_in '\bProcess\(\)|NSTask|posix_spawn|execv|popen' \
@@ -57,6 +61,13 @@ only_in 'NSAppleScript|NSUserAppleScriptTask|ScriptingBridge' \
 
 # 4. Nothing loads code or reaches private symbols at run time (the adapter is loaded by perl, not by the app).
 nowhere 'dlopen|dlsym|NSClassFromString|@_silgen_name|NSBundle\(path|Bundle\(path' 'run-time code loading'
+
+# Global event monitors: pointer moves for hover, and the wheel click that brings a hidden island back.
+# Nothing may watch the keyboard outside the app (the shortcut uses Carbon RegisterEventHotKey).
+if grep -nE 'addGlobalMonitorForEvents\(matching: [^)]*(keyDown|keyUp|flagsChanged|\.any)' -r Sources --include='*.swift' >/dev/null; then
+    fail "a global monitor reads the keyboard"
+fi
+nowhere 'CGEventTapCreate|CGEvent\.tapCreate|IOHIDManager' 'event tap or raw input device access'
 
 # 5. The logic target stays free of UI, network and system frameworks.
 for file in Sources/IsletCore/*.swift; do

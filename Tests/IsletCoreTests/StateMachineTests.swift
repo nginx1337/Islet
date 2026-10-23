@@ -332,4 +332,55 @@ struct StateMachineTests {
             "compact(dimmed: true)→hidden"
         ])
     }
+
+    // MARK: Hidden by the user
+
+    @Test func suppressingHidesAndShowingBringsItBack() {
+        let machine = makeMachine()
+        machine.mediaChanged(track("A"))
+        clock.advance(by: 3.1)
+        machine.isSuppressed = true
+        #expect(machine.presentation == .hidden)
+        #expect(machine.activeTimerCount == 0)
+        machine.isSuppressed = false
+        #expect(machine.presentation == .compact(dimmed: false))
+    }
+
+    @Test func suppressingClosesAnExpandedIsland() {
+        let machine = makeMachine()
+        machine.mediaChanged(track("A"))
+        machine.pointerEntered()
+        #expect(machine.presentation.isExpanded)
+        machine.isSuppressed = true
+        #expect(machine.presentation == .hidden)
+        machine.pointerExited()
+        machine.isSuppressed = false
+        #expect(machine.presentation == .compact(dimmed: false), "comes back compact, not expanded")
+    }
+
+    @Test func suppressedIslandIgnoresNewTracksHoverAndHotkey() {
+        let machine = makeMachine()
+        machine.mediaChanged(track("A"))
+        machine.isSuppressed = true
+        machine.mediaChanged(track("B"))
+        #expect(machine.presentation == .hidden)
+        machine.pointerEntered()
+        machine.clicked()
+        machine.hotkeyPressed()
+        #expect(machine.presentation == .hidden)
+        machine.pointerExited()
+        clock.advance(by: 10)
+        machine.isSuppressed = false
+        #expect(machine.presentation == .compact(dimmed: false), "B is not announced afterwards")
+    }
+
+    @Test func pausedMediaStillHidesAfterShowingAgain() {
+        let machine = makeMachine { $0.pauseHideDelay = 15 }
+        machine.mediaChanged(track("A", playing: false))
+        machine.isSuppressed = true
+        clock.advance(by: 20)
+        machine.isSuppressed = false
+        #expect(machine.presentation == .hidden, "the pause delay ran out meanwhile")
+    }
 }
+

@@ -14,6 +14,8 @@ final class IslandViewModel {
     let activities: ActivityModel
     /// The pointer is on the capsule: a timer shows its buttons.
     var satelliteHovering = false
+    /// Hidden by the user (middle click): the island and its capsule are both gone.
+    var isSuppressed = false
     @ObservationIgnored var onClick: (() -> Void)?
 
     init(layout: IslandLayout, activities: ActivityModel = ActivityModel()) {
@@ -23,7 +25,7 @@ final class IslandViewModel {
 
     /// Where the second capsule is right now, or nil when there is no activity.
     var satelliteFrame: CGRect? {
-        guard let activity = activities.current else { return nil }
+        guard !isSuppressed, let activity = activities.current else { return nil }
         let width = SatellitePlacement.width(for: activity.content, hovering: satelliteHovering, scale: layout.scale)
         return SatellitePlacement.frame(in: layout, main: shape, mainHidden: presentation.isHidden, width: width)
     }
@@ -119,6 +121,24 @@ final class IslandController {
         if title { viewModel.setTitle(mediaTitle) }
         panel.setFrame(layout.panelFrame, display: true)
         refreshSatellite()
+    }
+
+    /// Hides the island and its capsule until shown again (or shows them).
+    func setSuppressed(_ suppressed: Bool) {
+        viewModel.isSuppressed = suppressed
+        machine.isSuppressed = suppressed
+        refreshSatellite()
+    }
+
+    /// The pointer is on the visible island or its capsule (global AppKit coordinates).
+    func isOnIsland(_ global: NSPoint) -> Bool {
+        let local = layout.panelPoint(fromGlobal: global)
+        return (!machine.presentation.isHidden && viewModel.shape.contains(local)) || viewModel.satelliteContains(local)
+    }
+
+    /// Where a middle click brings a hidden island back: the compact island's place, a little larger.
+    func isRestoreSpot(_ global: NSPoint) -> Bool {
+        layout.compact.hitRect.insetBy(dx: -12, dy: -6).contains(layout.panelPoint(fromGlobal: global))
     }
 
     func setShowsInFullScreen(_ show: Bool) {

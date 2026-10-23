@@ -53,6 +53,19 @@ public final class IslandStateMachine {
         didSet { if behavior.pauseHideDelay != oldValue.pauseHideDelay { pauseDelayChanged() } }
     }
 
+    /// Hidden by the user (middle click): stays hidden whatever plays, until shown again.
+    /// Tracks that start meanwhile are not announced when it comes back.
+    public var isSuppressed = false {
+        didSet {
+            guard isSuppressed != oldValue else { return }
+            if isSuppressed {
+                for kind in [TimerKind.collapse, .trackChange, .hotkey] { disarm(kind) }
+                expansion = nil
+            }
+            recompute()
+        }
+    }
+
     /// Called with (old, new) on every presentation change.
     public var onChange: ((IslandPresentation, IslandPresentation) -> Void)?
 
@@ -102,7 +115,7 @@ public final class IslandStateMachine {
             pauseExpired = false
             if new.trackID != announcedTrackID {
                 announcedTrackID = new.trackID
-                if behavior.expandOnTrackChange, expansion == nil || expansion == .trackChange {
+                if behavior.expandOnTrackChange, !isSuppressed, expansion == nil || expansion == .trackChange {
                     expansion = .trackChange
                     arm(.trackChange, after: behavior.trackChangeDuration) { [weak self] in
                         guard let self, self.expansion == .trackChange else { return }
@@ -156,7 +169,7 @@ public final class IslandStateMachine {
 
     /// Toggles the expanded view. Works while paused media is hidden, so it can be resumed.
     public func hotkeyPressed() {
-        guard media != nil else { return }
+        guard media != nil, !isSuppressed else { return }
         if presentation.isExpanded {
             collapse()
             return
@@ -219,7 +232,9 @@ public final class IslandStateMachine {
 
     private func recompute() {
         let next: IslandPresentation
-        if let media {
+        if isSuppressed {
+            next = .hidden
+        } else if let media {
             if let expansion {
                 next = .expanded(expansion)
             } else if media.isPlaying || !pauseExpired {

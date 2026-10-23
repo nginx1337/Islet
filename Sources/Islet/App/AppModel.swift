@@ -54,7 +54,9 @@ final class AppModel {
         media.start()
         if withMenu {
             statusMenu = StatusMenuController(
-                media: media, activities: activities, openSettings: { [weak self] in self?.showSettings() })
+                media: media, activities: activities, openSettings: { [weak self] in self?.showSettings() },
+                islandHidden: { [weak self] in self?.islands.isHiddenByUser ?? false },
+                setIslandHidden: { [weak self] hidden in self?.islands.setHiddenByUser(hidden) })
         }
         // Timers are deadline based; after sleep the scheduled wake-up may be late, so check on wake.
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(

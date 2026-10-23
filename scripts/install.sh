@@ -14,7 +14,7 @@ BUNDLE_ID="app.islet.mac"
 
 bundle_id() { /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$1/Contents/Info.plist" 2>/dev/null || true; }
 
-if [[ "${1:-}" != "--no-build" ]]; then  # --build or nothing
+if [[ "${1:-}" != "--no-build" ]]; then
   scripts/build-app.sh
 fi
 

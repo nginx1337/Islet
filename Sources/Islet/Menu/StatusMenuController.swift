@@ -7,13 +7,18 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private let media: NowPlayingModel
     private let activities: ActivityModel
     private let openSettings: () -> Void
+    private let islandHidden: () -> Bool
+    private let setIslandHidden: (Bool) -> Void
 
     /// Timer lengths in minutes.
     private static let timerChoices: [Double] = [1, 5, 10, 15, 25, 30, 45, 60]
 
-    init(media: NowPlayingModel, activities: ActivityModel, openSettings: @escaping () -> Void) {
+    init(media: NowPlayingModel, activities: ActivityModel, openSettings: @escaping () -> Void,
+         islandHidden: @escaping () -> Bool, setIslandHidden: @escaping (Bool) -> Void) {
         self.media = media
         self.activities = activities
+        self.islandHidden = islandHidden
+        self.setIslandHidden = setIslandHidden
         self.openSettings = openSettings
         super.init()
         if let button = item.button {
@@ -51,6 +56,16 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             note.isEnabled = false
             menu.addItem(note)
         }
+        menu.addItem(.separator())
+        let hidden = islandHidden()
+        let visibility = NSMenuItem(
+            title: hidden ? tr("Показать остров", "Show the island") : tr("Скрыть остров", "Hide the island"),
+            action: #selector(toggleIsland), keyEquivalent: "")
+        visibility.target = self
+        visibility.toolTip = tr(
+            "Скрыть: щелчок колёсиком мыши по острову. Показать: снова колёсиком на том же месте или сочетание клавиш.",
+            "Hide: click the island with the mouse wheel. Show: click the wheel there again, or use the shortcut.")
+        menu.addItem(visibility)
         menu.addItem(.separator())
         addTimerItems(to: menu)
         menu.addItem(.separator())
@@ -109,6 +124,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     @objc private func removeStopwatch() {
         activities.dismiss(.stopwatch)
+    }
+
+    @objc private func toggleIsland() {
+        setIslandHidden(!islandHidden())
     }
 
     @objc private func togglePlayback() {
