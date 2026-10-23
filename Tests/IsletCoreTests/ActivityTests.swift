@@ -21,13 +21,13 @@ struct ActivityCenterTests {
         var finished = 0
         center.onTimerFinished = { finished += 1 }
         center.startTimer(duration: 60)
-        guard case .countdown(let timer) = center.current?.content else { return Issue.record("no timer") }
+        guard case .countdown(let timer) = center.current?.content else { Issue.record("no timer"); return }
         #expect(timer.remaining(at: clock.now) == 60)
         clock.advance(by: 30)
         #expect(finished == 0)
         clock.advance(by: 30.1)
         #expect(finished == 1)
-        guard case .countdown(let done) = center.current?.content else { return Issue.record("timer gone too early") }
+        guard case .countdown(let done) = center.current?.content else { Issue.record("timer gone too early"); return }
         #expect(done.isFinished)
     }
 
@@ -45,16 +45,16 @@ struct ActivityCenterTests {
         clock.advance(by: 40)
         center.toggleTimer()
         clock.advance(by: 500)
-        guard case .countdown(let timer) = center.current?.content else { return Issue.record("no timer") }
+        guard case .countdown(let timer) = center.current?.content else { Issue.record("no timer"); return }
         #expect(!timer.isRunning)
         #expect(timer.remaining(at: clock.now) == 60)
         #expect(clock.pendingCount == 0, "a paused timer has no deadline")
         center.toggleTimer()
         clock.advance(by: 59)
-        guard case .countdown(let resumed) = center.current?.content else { return Issue.record("no timer") }
+        guard case .countdown(let resumed) = center.current?.content else { Issue.record("no timer"); return }
         #expect(resumed.isRunning)
         clock.advance(by: 1.1)
-        guard case .countdown(let done) = center.current?.content else { return Issue.record("no timer") }
+        guard case .countdown(let done) = center.current?.content else { Issue.record("no timer"); return }
         #expect(done.isFinished)
     }
 
@@ -111,11 +111,11 @@ struct ActivityCenterTests {
         clock.advance(by: 10)
         center.toggleStopwatch()
         clock.advance(by: 100)
-        guard case .stopwatch(let paused) = center.current?.content else { return Issue.record("no stopwatch") }
+        guard case .stopwatch(let paused) = center.current?.content else { Issue.record("no stopwatch"); return }
         #expect(paused.elapsed(at: clock.now) == 10)
         center.toggleStopwatch()
         clock.advance(by: 5)
-        guard case .stopwatch(let running) = center.current?.content else { return Issue.record("no stopwatch") }
+        guard case .stopwatch(let running) = center.current?.content else { Issue.record("no stopwatch"); return }
         #expect(running.elapsed(at: clock.now) == 15)
         #expect(clock.pendingCount == 0, "a stopwatch needs no timers")
     }
