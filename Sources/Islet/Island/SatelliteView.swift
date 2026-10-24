@@ -105,8 +105,9 @@ struct SatelliteView: View {
     }
 
     /// The liquid neck between the island and a bubble coming out of it (or going back in): both shapes
-    /// are blurred and thresholded together, and only the part between them is shown, so neither
-    /// outline nor content changes.
+    /// are blurred and thresholded together, which fills the corners where they meet. Only a band from
+    /// just inside the island's edge to the bubble's left edge is shown: it covers the seam between the
+    /// two outlines from the first frame, and stops short of the island's equaliser bars.
     private func drop(progress p: CGFloat, shift: CGFloat) -> some View {
         let h = size.height
         let edge = -SatellitePlacement.bubbleOffset(from: main) // the island's right edge, in this view
@@ -114,6 +115,8 @@ struct SatelliteView: View {
         let margin = h * 0.5
         let width = size.width - left + 8
         let showing = mode == .bubble && p > 0.02 && p < 0.98
+        // How far into the island the band reaches: past its outline, short of the bars.
+        let cover = min(5, h * 0.17)
         let notchEnd = layout.style == .notch
         let radius = min(main.cornerRadius, h / 2)
         return Canvas { context, _ in
@@ -132,8 +135,8 @@ struct SatelliteView: View {
         .frame(width: width, height: h + 2 * margin)
         .mask(alignment: .topLeading) {
             Rectangle()
-                .frame(width: max(0, shift - edge + 2), height: h + 2 * margin)
-                .offset(x: edge - left - 1)
+                .frame(width: max(edge, shift) + 1 - (edge - cover), height: h + 2 * margin)
+                .offset(x: edge - cover - left)
         }
         .offset(x: left, y: -margin)
         .allowsHitTesting(false)
