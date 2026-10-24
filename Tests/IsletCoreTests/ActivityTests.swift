@@ -180,49 +180,29 @@ struct SatelliteGeometryTests {
 
     static let timer = ActivityContent.countdown(CountdownTimer(duration: 300, startingAt: Date()))
     static let headphones = ActivityContent.headphones(name: "AirPods Pro")
+    static let allModes: [SatelliteMode] = [.bubble, .island, .expanded, .notice]
+
+    // MARK: Modes
 
     @Test func modesFollowTheDynamicIsland() {
-        #expect(SatellitePlacement.mode(for: Self.timer, main: .compact, hovering: false) == .bubble)
-        #expect(SatellitePlacement.mode(for: Self.timer, main: .expanded, hovering: false) == .bubble)
-        #expect(SatellitePlacement.mode(for: Self.timer, main: .compact, hovering: true) == .capsule)
-        #expect(SatellitePlacement.mode(for: Self.timer, main: .hidden, hovering: false) == .island)
-        #expect(SatellitePlacement.mode(for: Self.headphones, main: .compact, hovering: false) == .banner)
-        #expect(SatellitePlacement.mode(for: .power(PowerInfo(event: .pluggedIn, percent: 50)), main: .hidden, hovering: true) == .banner)
+        #expect(SatellitePlacement.mode(for: Self.timer, main: .compact, expanded: false) == .bubble)
+        #expect(SatellitePlacement.mode(for: Self.timer, main: .expanded, expanded: false) == .bubble)
+        #expect(SatellitePlacement.mode(for: Self.timer, main: .hidden, expanded: false) == .island)
+        #expect(SatellitePlacement.mode(for: Self.timer, main: .compact, expanded: true) == .expanded)
+        #expect(SatellitePlacement.mode(for: Self.timer, main: .hidden, expanded: true) == .expanded)
+        #expect(SatellitePlacement.mode(for: Self.headphones, main: .compact, expanded: false) == .notice)
+        #expect(SatellitePlacement.mode(for: .power(PowerInfo(event: .pluggedIn, percent: 50)), main: .hidden, expanded: false) == .notice)
     }
 
-    @Test func noticesNeverCoverTheExpandedIsland() {
-        #expect(SatellitePlacement.mode(for: Self.headphones, main: .expanded, hovering: false) == .bubble)
-        #expect(SatellitePlacement.mode(for: Self.headphones, main: .expanded, hovering: true) == .bubble, "and do not widen")
+    @Test func noticesNeverCoverTheExpandedIslandAndDoNotOpen() {
+        #expect(SatellitePlacement.mode(for: Self.headphones, main: .expanded, expanded: false) == .bubble)
+        #expect(SatellitePlacement.mode(for: Self.headphones, main: .expanded, expanded: true) == .bubble)
+        #expect(SatellitePlacement.mode(for: Self.headphones, main: .compact, expanded: true) == .notice)
     }
 
-    @Test func bannerCoversTheIslandWithALongTitle() {
-        for scale in [0.7, 1.0, 1.5] {
-            for screen in [Self.macBook, Self.monitor] {
-                let layout = IslandLayoutEngine.layout(
-                    for: screen, settings: LayoutSettings(notchScale: scale, islandScale: scale, compactTitle: true))
-                let widest = layout.compact(fittingTitle: 2000)
-                let banner = SatellitePlacement.frame(in: layout, main: widest, mode: .banner, content: Self.headphones, hovering: false)
-                #expect(banner.minX <= widest.frame.minX && banner.maxX >= widest.frame.maxX, "\(screen.id) scale \(scale)")
-            }
-        }
-    }
-
-    @Test func notchSidesNeverShrinkBelowTheirContent() {
-        // The notch keeps its height at every size, and so do the time and the labels drawn from it.
-        let small = IslandLayoutEngine.layout(for: Self.macBook, settings: LayoutSettings(notchScale: 0.7))
-        let normal = IslandLayoutEngine.layout(for: Self.macBook, settings: LayoutSettings())
-        for mode in [SatelliteMode.island, .banner] {
-            let a = SatellitePlacement.frame(in: small, main: small.hidden, mode: mode, content: Self.timer, hovering: false)
-            let b = SatellitePlacement.frame(in: normal, main: normal.hidden, mode: mode, content: Self.timer, hovering: false)
-            #expect(a.width >= b.width, "\(mode)")
-        }
-        let big = IslandLayoutEngine.layout(for: Self.macBook, settings: LayoutSettings(notchScale: 1.5))
-        let c = SatellitePlacement.frame(in: big, main: big.hidden, mode: .banner, content: Self.headphones, hovering: false)
-        #expect(c.width > SatellitePlacement.frame(in: normal, main: normal.hidden, mode: .banner, content: Self.headphones, hovering: false).width)
-    }
+    // MARK: Frames
 
     @Test func everyModeFitsInThePanel() {
-        let modes: [SatelliteMode] = [.bubble, .capsule, .island, .banner]
         for screen in [Self.macBook, Self.monitor] {
             for scale in [0.7, 1.0, 1.5] {
                 for preference in IslandStylePreference.allCases {
@@ -230,15 +210,11 @@ struct SatelliteGeometryTests {
                         notchScale: scale, islandScale: scale, compactTitle: true, stylePreference: preference)
                     let layout = IslandLayoutEngine.layout(for: screen, settings: settings)
                     let bounds = CGRect(origin: .zero, size: layout.panelFrame.size)
-                    for shape in [layout.compact, layout.expanded] {
-                        for mode in modes {
-                            for content in [Self.timer, Self.headphones] {
-                                let frame = SatellitePlacement.frame(
-                                    in: layout, main: shape, mode: mode, content: content, hovering: true)
-                                #expect(bounds.contains(frame), "\(screen.id) \(preference) \(mode) scale \(scale)")
-                                #expect(frame.height == layout.compact.frame.height)
-                                #expect(frame.minY == layout.compact.frame.minY)
-                            }
+                    for shape in [layout.hidden, layout.compact, layout.expanded] {
+                        for mode in Self.allModes {
+                            let frame = SatellitePlacement.frame(in: layout, main: shape, mode: mode)
+                            #expect(bounds.contains(frame), "\(screen.id) \(preference) \(mode) scale \(scale)")
+                            #expect(frame.minY == layout.compact.frame.minY, "hangs from the island's top")
                         }
                     }
                 }
@@ -249,35 +225,76 @@ struct SatelliteGeometryTests {
     @Test func bubbleIsACircleOnTheRightOfTheIsland() {
         let layout = IslandLayoutEngine.layout(for: Self.macBook, settings: LayoutSettings())
         for shape in [layout.compact, layout.expanded] {
-            let bubble = SatellitePlacement.frame(in: layout, main: shape, mode: .bubble, content: Self.timer, hovering: false)
+            let bubble = SatellitePlacement.frame(in: layout, main: shape, mode: .bubble)
             #expect(bubble.width == bubble.height)
+            #expect(bubble.height == layout.compact.frame.height)
             #expect(bubble.minX >= shape.hitRect.maxX + SatellitePlacement.gap - 0.001)
-            let capsule = SatellitePlacement.frame(in: layout, main: shape, mode: .capsule, content: Self.timer, hovering: true)
-            #expect(capsule.minX == bubble.minX, "it widens to the right, under the pointer")
-            #expect(capsule.width > bubble.width)
+            #expect(bubble.minX - shape.frame.maxX == SatellitePlacement.bubbleOffset(from: shape))
         }
     }
 
     @Test func islandModeSitsOnTheNotchWithRoomOnBothSides() {
         let layout = IslandLayoutEngine.layout(for: Self.macBook, settings: LayoutSettings())
         #expect(SatellitePlacement.hasPhysicalNotch(layout))
-        let island = SatellitePlacement.frame(in: layout, main: layout.hidden, mode: .island, content: Self.timer, hovering: false)
+        let island = SatellitePlacement.frame(in: layout, main: layout.hidden, mode: .island)
         #expect(island.midX == layout.compact.frame.midX)
+        #expect(island.height == layout.compact.frame.height)
         #expect((island.width - layout.notchWidth) / 2 >= SatellitePlacement.islandEar, "each side holds a glyph or the time")
-        let withButtons = SatellitePlacement.frame(in: layout, main: layout.hidden, mode: .island, content: Self.timer, hovering: true)
-        #expect(withButtons.width > island.width)
     }
 
-    @Test func bannerIsWideAndCentred() {
+    @Test func notchSidesNeverShrinkBelowTheirContent() {
+        // The notch keeps its height at every size, and so does the time drawn from it.
+        let small = IslandLayoutEngine.layout(for: Self.macBook, settings: LayoutSettings(notchScale: 0.7))
+        let normal = IslandLayoutEngine.layout(for: Self.macBook, settings: LayoutSettings())
+        let a = SatellitePlacement.frame(in: small, main: small.hidden, mode: .island)
+        let b = SatellitePlacement.frame(in: normal, main: normal.hidden, mode: .island)
+        #expect(a.width >= b.width)
+    }
+
+    @Test func cardsHangBelowTheMenuBarAndCoverTheIsland() {
         for screen in [Self.macBook, Self.monitor] {
-            let layout = IslandLayoutEngine.layout(for: screen, settings: LayoutSettings())
-            let banner = SatellitePlacement.frame(in: layout, main: layout.compact, mode: .banner, content: Self.headphones, hovering: false)
-            #expect(banner.midX == layout.compact.frame.midX)
-            #expect(banner.width > layout.compact.frame.width, "covers the island while it is shown")
+            for scale in [0.7, 1.0, 1.5] {
+                let layout = IslandLayoutEngine.layout(
+                    for: screen, settings: LayoutSettings(notchScale: scale, islandScale: scale, compactTitle: true))
+                let widest = layout.compact(fittingTitle: 2000)
+                for mode in [SatelliteMode.expanded, .notice] {
+                    let card = SatellitePlacement.frame(in: layout, main: widest, mode: mode)
+                    #expect(card.minX <= widest.frame.minX && card.maxX >= widest.frame.maxX, "\(screen.id) \(mode) \(scale)")
+                    #expect(abs(card.midX - layout.compact.frame.midX) <= 0.5, "centred on the island (to the pixel)")
+                    #expect(card.height > layout.contentTopInset + 40 * layout.scale, "room for content below the menu bar")
+                    #expect(card.height < layout.expanded.frame.height, "smaller than the expanded music island")
+                }
+                let expanded = SatellitePlacement.frame(in: layout, main: widest, mode: .expanded)
+                #expect(expanded.width == layout.expanded.frame.width)
+            }
         }
+    }
+
+    @Test func noticeIsNarrowerThanTheExpandedIsland() {
+        let layout = IslandLayoutEngine.layout(for: Self.monitor, settings: LayoutSettings())
+        let notice = SatellitePlacement.frame(in: layout, main: layout.compact, mode: .notice)
+        #expect(notice.width < layout.expanded.frame.width)
+        #expect(notice.width == SatellitePlacement.noticeWidth)
+    }
+
+    @Test func shapesMatchTheIslandTheyStandFor() {
         let notch = IslandLayoutEngine.layout(for: Self.macBook, settings: LayoutSettings())
-        let banner = SatellitePlacement.frame(in: notch, main: notch.compact, mode: .banner, content: Self.headphones, hovering: false)
-        #expect((banner.width - notch.notchWidth) / 2 >= SatellitePlacement.bannerEar, "room for a device name beside the notch")
+        let pill = IslandLayoutEngine.layout(for: Self.monitor, settings: LayoutSettings())
+        for layout in [notch, pill] {
+            let bubble = SatellitePlacement.frame(in: layout, main: layout.compact, mode: .bubble)
+            let circle = SatellitePlacement.shape(of: bubble, mode: .bubble, in: layout)
+            #expect(circle.cornerRadius == bubble.height / 2 && circle.topFlare == 0, "a bubble is always a circle")
+            #expect(!circle.contains(CGPoint(x: bubble.minX + 1, y: bubble.minY + 1)), "its empty corners take no clicks")
+            #expect(circle.contains(CGPoint(x: bubble.midX, y: bubble.midY)))
+            for mode in [SatelliteMode.expanded, .notice] {
+                let card = SatellitePlacement.frame(in: layout, main: layout.compact, mode: mode)
+                let spec = SatellitePlacement.shape(of: card, mode: mode, in: layout)
+                #expect(spec.cornerRadius == layout.expanded.cornerRadius, "cards are rounded like the expanded island")
+                #expect(spec.topFlare == layout.expanded.topFlare, "and hang from the top edge in the notch look")
+            }
+        }
+        let island = SatellitePlacement.frame(in: notch, main: notch.hidden, mode: .island)
+        #expect(SatellitePlacement.shape(of: island, mode: .island, in: notch) == notch.compact.withFrame(island))
     }
 
     @Test func controlsBelongToTimersAndStopwatches() {
@@ -294,5 +311,27 @@ struct SatelliteGeometryTests {
         #expect(layout.panelFrame.midX == 756)
         let wide = IslandLayoutEngine.layout(for: Self.monitor, settings: LayoutSettings())
         #expect(wide.panelFrame.midX == Self.monitor.frame.midX)
+    }
+
+    // MARK: Device glyphs
+
+    @Test func deviceGlyphFollowsTheName() {
+        #expect(DeviceGlyph.symbol(forDeviceName: "AirPods Pro Ивана") == "airpodspro")
+        #expect(DeviceGlyph.symbol(forDeviceName: "Ivan’s AirPods Max") == "airpodsmax")
+        #expect(DeviceGlyph.symbol(forDeviceName: "AirPods") == "airpods")
+        #expect(DeviceGlyph.symbol(forDeviceName: "Beats Studio Pro") == "beats.headphones")
+        #expect(DeviceGlyph.symbol(forDeviceName: "HomePod mini") == "homepod.fill")
+        #expect(DeviceGlyph.symbol(forDeviceName: "JBL Flip 6") == "hifispeaker.fill")
+        #expect(DeviceGlyph.symbol(forDeviceName: "Колонка на кухне") == "hifispeaker.fill")
+        #expect(DeviceGlyph.symbol(forDeviceName: "WH-1000XM5") == "headphones")
+        #expect(DeviceGlyph.symbol(forDeviceName: "") == "headphones")
+    }
+}
+
+private extension ShapeSpec {
+    func withFrame(_ frame: CGRect) -> ShapeSpec {
+        var copy = self
+        copy.frame = frame
+        return copy
     }
 }

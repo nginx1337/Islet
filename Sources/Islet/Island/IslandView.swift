@@ -28,29 +28,41 @@ struct IslandRootView: View {
 }
 
 extension IslandRootView {
-    /// The live activity: a bubble that pops out of the island's edge and slides along with it,
-    /// the island itself when nothing else is shown, or a banner over the island for a notice.
+    /// The live activity: a bubble that comes out of the island's edge, the island itself when nothing
+    /// else plays, its card when clicked open, or a notice that drops out of the island.
     @ViewBuilder
     var satellite: some View {
         let mode = model.satelliteMode
         ZStack(alignment: .topLeading) {
-            if let activity = model.activities.current, let mode, let frame = model.satelliteFrame {
+            if let activity = model.activities.current, let mode, let shape = model.satelliteShape {
                 SatelliteView(
-                    activity: activity, activities: model.activities, mode: mode, hovering: model.satelliteHovering,
-                    layout: model.layout, size: frame.size)
-                    .frame(width: frame.width, height: frame.height)
-                    // A banner only shows a notice: clicks reach the island under it.
-                    .allowsHitTesting(mode != .banner)
-                    .offset(x: frame.minX, y: frame.minY)
-                    .transition(.asymmetric(
-                        insertion: .scale(scale: 0.5, anchor: mode == .bubble ? .leading : .center).combined(with: .opacity),
-                        removal: .scale(scale: 0.7, anchor: mode == .bubble ? .leading : .center).combined(with: .opacity)))
+                    activity: activity, activities: model.activities, mode: mode, layout: model.layout,
+                    shape: shape, main: model.shape, onTap: { model.onSatelliteClick?() })
+                    .frame(width: shape.frame.width, height: shape.frame.height)
+                    // A notice only shows something: clicks reach the island and the menu bar under it.
+                    .allowsHitTesting(mode != .notice)
+                    .offset(x: shape.frame.minX, y: shape.frame.minY)
+                    .transition(Self.transition(for: mode))
             }
         }
         .frame(width: model.layout.panelFrame.width, height: model.layout.panelFrame.height, alignment: .topLeading)
         .animation(IslandMotion.satellite, value: model.activities.current?.kind)
         .animation(IslandMotion.satellite, value: mode)
-        .animation(IslandMotion.satellite, value: model.satelliteHovering)
+    }
+
+    /// A bubble comes out of the island like a drop; cards drop down from it; the activity island
+    /// takes the island's place.
+    static func transition(for mode: SatelliteMode) -> AnyTransition {
+        switch mode {
+        case .bubble:
+            .emerge
+        case .expanded, .notice:
+            .asymmetric(
+                insertion: .scale(scale: 0.6, anchor: .top).combined(with: .opacity),
+                removal: .scale(scale: 0.85, anchor: .top).combined(with: .opacity))
+        case .island:
+            .scale(scale: 0.6, anchor: .center).combined(with: .opacity)
+        }
     }
 }
 
