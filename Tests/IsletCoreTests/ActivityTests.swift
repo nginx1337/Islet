@@ -182,11 +182,43 @@ struct SatelliteGeometryTests {
     static let headphones = ActivityContent.headphones(name: "AirPods Pro")
 
     @Test func modesFollowTheDynamicIsland() {
-        #expect(SatellitePlacement.mode(for: Self.timer, mainVisible: true, hovering: false) == .bubble)
-        #expect(SatellitePlacement.mode(for: Self.timer, mainVisible: true, hovering: true) == .capsule)
-        #expect(SatellitePlacement.mode(for: Self.timer, mainVisible: false, hovering: false) == .island)
-        #expect(SatellitePlacement.mode(for: Self.headphones, mainVisible: true, hovering: false) == .banner)
-        #expect(SatellitePlacement.mode(for: .power(PowerInfo(event: .pluggedIn, percent: 50)), mainVisible: false, hovering: true) == .banner)
+        #expect(SatellitePlacement.mode(for: Self.timer, main: .compact, hovering: false) == .bubble)
+        #expect(SatellitePlacement.mode(for: Self.timer, main: .expanded, hovering: false) == .bubble)
+        #expect(SatellitePlacement.mode(for: Self.timer, main: .compact, hovering: true) == .capsule)
+        #expect(SatellitePlacement.mode(for: Self.timer, main: .hidden, hovering: false) == .island)
+        #expect(SatellitePlacement.mode(for: Self.headphones, main: .compact, hovering: false) == .banner)
+        #expect(SatellitePlacement.mode(for: .power(PowerInfo(event: .pluggedIn, percent: 50)), main: .hidden, hovering: true) == .banner)
+    }
+
+    @Test func noticesNeverCoverTheExpandedIsland() {
+        #expect(SatellitePlacement.mode(for: Self.headphones, main: .expanded, hovering: false) == .bubble)
+        #expect(SatellitePlacement.mode(for: Self.headphones, main: .expanded, hovering: true) == .bubble, "and do not widen")
+    }
+
+    @Test func bannerCoversTheIslandWithALongTitle() {
+        for scale in [0.7, 1.0, 1.5] {
+            for screen in [Self.macBook, Self.monitor] {
+                let layout = IslandLayoutEngine.layout(
+                    for: screen, settings: LayoutSettings(notchScale: scale, islandScale: scale, compactTitle: true))
+                let widest = layout.compact(fittingTitle: 2000)
+                let banner = SatellitePlacement.frame(in: layout, main: widest, mode: .banner, content: Self.headphones, hovering: false)
+                #expect(banner.minX <= widest.frame.minX && banner.maxX >= widest.frame.maxX, "\(screen.id) scale \(scale)")
+            }
+        }
+    }
+
+    @Test func notchSidesNeverShrinkBelowTheirContent() {
+        // The notch keeps its height at every size, and so do the time and the labels drawn from it.
+        let small = IslandLayoutEngine.layout(for: Self.macBook, settings: LayoutSettings(notchScale: 0.7))
+        let normal = IslandLayoutEngine.layout(for: Self.macBook, settings: LayoutSettings())
+        for mode in [SatelliteMode.island, .banner] {
+            let a = SatellitePlacement.frame(in: small, main: small.hidden, mode: mode, content: Self.timer, hovering: false)
+            let b = SatellitePlacement.frame(in: normal, main: normal.hidden, mode: mode, content: Self.timer, hovering: false)
+            #expect(a.width >= b.width, "\(mode)")
+        }
+        let big = IslandLayoutEngine.layout(for: Self.macBook, settings: LayoutSettings(notchScale: 1.5))
+        let c = SatellitePlacement.frame(in: big, main: big.hidden, mode: .banner, content: Self.headphones, hovering: false)
+        #expect(c.width > SatellitePlacement.frame(in: normal, main: normal.hidden, mode: .banner, content: Self.headphones, hovering: false).width)
     }
 
     @Test func everyModeFitsInThePanel() {

@@ -33,12 +33,22 @@ final class IslandViewModel {
     /// How the activity is shown: a bubble beside the island, the island itself, or a banner.
     var satelliteMode: SatelliteMode? {
         guard !isSuppressed, let activity = activities.current else { return nil }
-        return SatellitePlacement.mode(
-            for: activity.content, mainVisible: !presentation.isHidden, hovering: satelliteHovering)
+        let main: MainIslandState = switch presentation {
+        case .hidden: .hidden
+        case .compact: .compact
+        case .expanded: .expanded
+        }
+        return SatellitePlacement.mode(for: activity.content, main: main, hovering: satelliteHovering)
     }
 
+    /// Whether the pointer is on the activity. A banner is only a notice: it takes no clicks and no
+    /// hover, so the menu bar items under it keep working and the island under it still expands.
+    /// Rounded shapes count only inside their outline, not in the empty corners of their frame.
     func satelliteContains(_ point: CGPoint) -> Bool {
-        satelliteFrame.map { $0.contains(point) } ?? false
+        guard let frame = satelliteFrame, let mode = satelliteMode, mode != .banner else { return false }
+        let notchShaped = layout.style == .notch && mode == .island
+        let radius = notchShaped ? layout.compact.cornerRadius : frame.height / 2
+        return ShapeSpec(frame: frame, cornerRadius: radius, topFlare: notchShaped ? layout.compact.topFlare : 0).contains(point)
     }
 
     var style: IslandStyle { layout.style }
@@ -168,8 +178,6 @@ final class IslandController {
         // While dragging the progress bar the pointer may wander off the island: keep the drag.
         if pointerInside && NSEvent.pressedMouseButtons != 0 { inside = true }
         updateSatellite(local: local)
-        // A banner lies over the island: under it the island must not expand.
-        if satelliteInside && viewModel.satelliteMode == .banner { inside = false }
         setPointerInside(inside)
     }
 

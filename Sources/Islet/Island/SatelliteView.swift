@@ -41,7 +41,7 @@ struct SatelliteView: View {
         }
         .animation(IslandMotion.swap, value: activity.kind)
         .animation(IslandMotion.swap, value: mode)
-        .contentShape(Rectangle())
+        .contentShape(notchShaped ? AnyShape(Rectangle()) : AnyShape(Capsule()))
         .onTapGesture { activities.primaryAction() }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
@@ -50,11 +50,12 @@ struct SatelliteView: View {
 
     // MARK: Shape
 
-    @ViewBuilder
+    /// Both shapes are always there and cross-fade with the same spring that moves the frame, so going
+    /// from the island's shape to a bubble (music starts) morphs instead of popping.
     private var background: some View {
         let outline = Color.white.opacity(layout.outline ? IslandOutline.opacity : 0)
-        if notchShaped {
-            let flare = layout.compact.topFlare, radius = layout.compact.cornerRadius
+        let flare = layout.compact.topFlare, radius = layout.compact.cornerRadius
+        return ZStack {
             NotchShape(flare: flare, bottomRadius: radius)
                 .fill(.black)
                 .overlay {
@@ -62,12 +63,14 @@ struct SatelliteView: View {
                         .stroke(outline, lineWidth: IslandOutline.width)
                 }
                 .padding(.horizontal, -flare)
-        } else {
+                .opacity(notchShaped ? 1 : 0)
             Capsule(style: .continuous)
                 .fill(.black)
                 .overlay { Capsule(style: .continuous).strokeBorder(outline, lineWidth: IslandOutline.width) }
                 .shadow(color: .black.opacity(layout.style == .floating ? 0.3 : 0), radius: 10, y: 4)
+                .opacity(notchShaped ? 0 : 1)
         }
+        .animation(IslandMotion.satellite, value: notchShaped)
     }
 
     // MARK: Content by mode
@@ -156,12 +159,13 @@ struct SatelliteView: View {
         }
     }
 
-    private func glyph(_ symbol: String, tint: Color) -> some View {
+    /// A monochrome SF Symbol; `framed` centres it in the round slot at the shape's end.
+    private func glyph(_ symbol: String, tint: Color, framed: Bool = true) -> some View {
         Image(systemName: symbol)
             .font(.system(size: glyphSize * 0.9, weight: .semibold))
             .symbolRenderingMode(.monochrome)
             .foregroundStyle(tint)
-            .frame(width: slot, height: slot)
+            .frame(width: framed ? slot : nil, height: framed ? slot : nil)
     }
 
     /// The glyph in its slot; under the pointer it gives way to ✕ and pause/play.
@@ -224,65 +228,51 @@ struct SatelliteView: View {
     /// Glyph and title on the left, the value on the right; beside a physical notch each side gets its own ear.
     @ViewBuilder
     private var banner: some View {
-        let left = HStack(spacing: 7 * scale) {
-            Image(systemName: bannerSymbol)
-                .font(.system(size: glyphSize * 0.9, weight: .semibold))
-                .symbolRenderingMode(.monochrome)
-                .foregroundStyle(bannerTint)
-            Text(bannerTitle)
-                .font(.system(size: valueSize * 0.9, weight: .semibold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .truncationMode(.tail)
-        }
-        if let ear {
-            HStack(spacing: 0) {
-                left
-                    .padding(.leading, height * 0.45)
-                    .frame(width: ear, alignment: .leading)
-                Spacer(minLength: 0)
-                trailing
-                    .padding(.trailing, height * 0.45)
-                    .frame(width: ear, alignment: .trailing)
+        if let notice {
+            let left = HStack(spacing: 7 * scale) {
+                glyph(notice.symbol, tint: notice.tint, framed: false)
+                Text(notice.title)
+                    .font(.system(size: valueSize * 0.9, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .truncationMode(.tail)
             }
-        } else {
-            HStack(spacing: 8 * scale) {
-                left
-                Spacer(minLength: 8 * scale)
-                trailing
+            if let ear {
+                HStack(spacing: 0) {
+                    left
+                        .padding(.leading, height * 0.45)
+                        .frame(width: ear, alignment: .leading)
+                    Spacer(minLength: 0)
+                    trailing
+                        .padding(.trailing, height * 0.45)
+                        .frame(width: ear, alignment: .trailing)
+                }
+            } else {
+                HStack(spacing: 8 * scale) {
+                    left
+                    Spacer(minLength: 8 * scale)
+                    trailing
+                }
+                .padding(.horizontal, height * 0.45)
             }
-            .padding(.horizontal, height * 0.45)
         }
     }
 
-    private var bannerSymbol: String {
-        switch activity.content {
-        case .power(let info): powerSymbol(info)
-        case .headphones: "headphones"
-        default: "circle"
-        }
-    }
-
-    private var bannerTint: Color {
-        switch activity.content {
-        case .power(let info): powerTint(info)
-        default: .white
-        }
-    }
-
-    private var bannerTitle: String {
+    /// What a notice shows; nil for activities that are not notices.
+    private var notice: (symbol: String, tint: Color, title: String)? {
         switch activity.content {
         case .power(let info):
-            switch info.event {
+            let title = switch info.event {
             case .pluggedIn: tr("Зарядка", "Charging")
             case .unplugged: tr("От батареи", "On battery")
             case .low: tr("Низкий заряд", "Low battery")
             }
+            return (powerSymbol(info), powerTint(info), title)
         case .headphones(let name):
-            name.isEmpty ? tr("Наушники", "Headphones") : name
-        default:
-            ""
+            return ("headphones", .white, name.isEmpty ? tr("Наушники", "Headphones") : name)
+        case .countdown, .stopwatch, .transfer:
+            return nil
         }
     }
 

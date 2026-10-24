@@ -39,6 +39,8 @@ extension IslandRootView {
                     activity: activity, activities: model.activities, mode: mode, hovering: model.satelliteHovering,
                     layout: model.layout, size: frame.size)
                     .frame(width: frame.width, height: frame.height)
+                    // A banner only shows a notice: clicks reach the island under it.
+                    .allowsHitTesting(mode != .banner)
                     .offset(x: frame.minX, y: frame.minY)
                     .transition(.asymmetric(
                         insertion: .scale(scale: 0.5, anchor: mode == .bubble ? .leading : .center).combined(with: .opacity),

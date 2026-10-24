@@ -11,7 +11,13 @@ public enum SatelliteMode: Equatable, Sendable {
     /// (Apple's "compact").
     case island
     /// A short notice (charger, headphones): the island widens into a banner for a few seconds.
+    /// It only shows the notice: clicks go through to whatever is under it.
     case banner
+}
+
+/// What the music island is doing, as far as the activity is concerned.
+public enum MainIslandState: Equatable, Sendable {
+    case hidden, compact, expanded
 }
 
 /// Where a live activity goes. Pure geometry, in panel coordinates with the origin at the top-left.
@@ -29,22 +35,32 @@ public enum SatellitePlacement {
     /// Extra room for the pause and cancel buttons when the pointer is on a timer in island mode.
     public static let buttonsWidth: CGFloat = 44
 
-    public static func mode(for content: ActivityContent, mainVisible: Bool, hovering: Bool) -> SatelliteMode {
-        switch content {
-        case .power, .headphones: .banner
-        default: mainVisible ? (hovering ? .capsule : .bubble) : .island
+    /// A notice never covers the expanded island (its title and buttons are there): it waits beside it
+    /// as a bubble instead.
+    public static func mode(for content: ActivityContent, main: MainIslandState, hovering: Bool) -> SatelliteMode {
+        switch (content, main) {
+        case (.power, .expanded), (.headphones, .expanded): .bubble
+        case (.power, _), (.headphones, _): .banner
+        case (_, .hidden): .island
+        default: hovering ? .capsule : .bubble
         }
     }
 
     /// Width of the capsule at scale 1. A timer or stopwatch under the pointer makes room for its buttons.
+    /// (Notices never widen into a capsule: they are a banner, or a bubble beside the expanded island.)
     public static func baseWidth(for content: ActivityContent, hovering: Bool = false) -> CGFloat {
         switch content {
         case .countdown(let timer): hovering && !timer.isFinished ? maxWidth : 106
         case .stopwatch: hovering ? maxWidth : 106
-        case .power: 92
-        case .headphones: 116
-        case .transfer: 92
+        case .transfer, .power, .headphones: 92
         }
+    }
+
+    /// Scale for widths whose content is sized from the shape's height. The notch looks keep the height
+    /// of the notch or the menu bar whatever the size setting, so their widths must not shrink below
+    /// scale 1, or the text would spill under the camera or past the edge.
+    static func contentScale(_ layout: IslandLayout) -> CGFloat {
+        layout.style == .notch ? max(layout.scale, 1) : layout.scale
     }
 
     /// Horizontal space the panel keeps free on each side for the capsule.
@@ -76,15 +92,17 @@ public enum SatellitePlacement {
         case .capsule:
             return beside(width: (baseWidth(for: content, hovering: hovering) * s).rounded())
         case .island:
-            let buttons = hovering && content.hasControls ? (buttonsWidth * s).rounded() : 0
+            let c = contentScale(layout)
+            let buttons = hovering && content.hasControls ? (buttonsWidth * c).rounded() : 0
             let base = notch
-                ? layout.notchWidth + 2 * (islandEar * s).rounded()
-                : max(layout.compactBaseWidth, (islandWidth * s).rounded())
+                ? layout.notchWidth + 2 * (islandEar * c).rounded()
+                : max(layout.compactBaseWidth, (islandWidth * c).rounded())
             return centred(width: base + buttons)
         case .banner:
-            return centred(width: notch
-                ? layout.notchWidth + 2 * (bannerEar * s).rounded()
-                : (bannerWidth * s).rounded())
+            let c = contentScale(layout)
+            let base = notch ? layout.notchWidth + 2 * (bannerEar * c).rounded() : (bannerWidth * c).rounded()
+            // Never narrower than the island it covers (a long compact title makes the island wider).
+            return centred(width: max(base, main.frame.width))
         }
     }
 }
