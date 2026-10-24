@@ -150,6 +150,15 @@ public enum ActivityContent: Equatable, Sendable {
         }
     }
 
+    /// A timer or stopwatch that can be paused and cancelled from its buttons.
+    public var hasControls: Bool {
+        switch self {
+        case .countdown(let timer): !timer.isFinished
+        case .stopwatch: true
+        case .power, .headphones, .transfer: false
+        }
+    }
+
     /// Higher wins the capsule when several activities exist.
     var priority: Int {
         switch self {

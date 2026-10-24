@@ -9,7 +9,7 @@ On a MacBook the island lives in the notch and grows out of it. On an external m
 
 [Русская версия](README.md)
 
-<img src="docs/overview.png" width="100%" alt="Islet: Swift 6, SwiftUI, Core Animation, Core Audio. About 7,500 lines, no telemetry, 127 tests, 0% idle CPU. Hover to expand; the bars follow the real sound; click the title to open the player; ⌃⌥⌘N expands and collapses.">
+<img src="docs/overview.png" width="100%" alt="Islet: Swift 6, SwiftUI, Core Animation, Core Audio. About 7,500 lines, no telemetry, 130 tests, 0% idle CPU. Hover to expand; the bars follow the real sound; click the title to open the player; ⌃⌥⌘N expands and collapses.">
 
 | In the MacBook notch | On an external monitor |
 |---|---|
@@ -41,9 +41,15 @@ Like the iPhone's island over a dark background: a thin light edge around the is
 
 ## Live activities
 
-Like Dynamic Island: a second capsule appears beside the island. The island shows music; the capsule shows one activity at a time (more important wins):
+Like Dynamic Island: one activity at a time (more important wins), shown according to what else is on screen:
 
-- **Timer** and **stopwatch**, started from the menu bar menu. Tap the capsule to pause or resume; hovering shows pause and cancel buttons. A finished timer rings (sound can be turned off in Settings) and goes away after 10 seconds.
+- **Next to music**: a small circle on the right of the island with only the timer ring or a glyph, no text. Hover and it widens to the time and buttons.
+- **Without music**: the activity becomes the island itself, glyph on the left, time on the right (beside the notch on a MacBook).
+- **Short notices** (charger, headphones): the island widens into a banner for a few seconds, with room for the device name.
+
+What is shown:
+
+- **Timer** and **stopwatch**, started from the menu bar menu. Tap to pause or resume; hovering shows pause and cancel buttons. A finished timer rings (sound can be turned off in Settings) and goes away after 10 seconds.
 - **Power**: charger plugged in or unplugged, battery down to 20 %.
 - **Bluetooth headphones** became the sound output (shows the device name).
 - **File progress** (off by default, experimental): copies and downloads, percent only.
@@ -114,7 +120,7 @@ Details, permissions and how to report a vulnerability: [SECURITY.md](SECURITY.m
 
 The style is chosen per screen: a screen with a notch (`safeAreaInsets.top > 0`, notch width from `auxiliaryTopLeftArea`/`auxiliaryTopRightArea`) gets the notch style, every other screen the pill. The "Look" setting can override that: "Island" everywhere (below the menu bar on a notched screen) or "Notch" everywhere (a compact drawn notch at the top centre where there is none). The layout is a pure function of screen descriptions and settings, recomputed when a monitor is plugged in, the lid closes or the resolution changes. On monitors the menu bar height comes from `frame` vs `visibleFrame`: on macOS 27 `NSStatusBar.system.thickness` returns 22 pt while the bar is 30 pt, so it is only the fallback for an auto-hidden menu bar.
 
-Tests (Swift Testing, 127): JSON stream parsing (normal, empty, broken, split into chunks), every state-machine transition with an injected clock, frames for a notched screen, 1× and 2× monitors, two screens and configuration changes, interpolation, marquee, dominant colour on synthetic images, source failover, bars on synthetic tones (bass, mids, highs, silence), back/forward buttons, timer and stopwatch (pause, finish, limits), activity priorities, capsule placement in every look and scale, the drawn notch. `scripts/audit.sh` checks the sources for network, program launch and permissions.
+Tests (Swift Testing, 130): JSON stream parsing (normal, empty, broken, split into chunks), every state-machine transition with an injected clock, frames for a notched screen, 1× and 2× monitors, two screens and configuration changes, interpolation, marquee, dominant colour on synthetic images, source failover, bars on synthetic tones (bass, mids, highs, silence), back/forward buttons, timer and stopwatch (pause, finish, limits), activity priorities, capsule placement in every look and scale, the drawn notch. `scripts/audit.sh` checks the sources for network, program launch and permissions.
 
 ## Limitations
 
