@@ -25,9 +25,16 @@ final class IslandViewModel {
 
     /// Where the second capsule is right now, or nil when there is no activity.
     var satelliteFrame: CGRect? {
+        guard let activity = activities.current, let mode = satelliteMode else { return nil }
+        return SatellitePlacement.frame(
+            in: layout, main: shape, mode: mode, content: activity.content, hovering: satelliteHovering)
+    }
+
+    /// How the activity is shown: a bubble beside the island, the island itself, or a banner.
+    var satelliteMode: SatelliteMode? {
         guard !isSuppressed, let activity = activities.current else { return nil }
-        let width = SatellitePlacement.width(for: activity.content, hovering: satelliteHovering, scale: layout.scale)
-        return SatellitePlacement.frame(in: layout, main: shape, mainHidden: presentation.isHidden, width: width)
+        return SatellitePlacement.mode(
+            for: activity.content, mainVisible: !presentation.isHidden, hovering: satelliteHovering)
     }
 
     func satelliteContains(_ point: CGPoint) -> Bool {
@@ -161,6 +168,8 @@ final class IslandController {
         // While dragging the progress bar the pointer may wander off the island: keep the drag.
         if pointerInside && NSEvent.pressedMouseButtons != 0 { inside = true }
         updateSatellite(local: local)
+        // A banner lies over the island: under it the island must not expand.
+        if satelliteInside && viewModel.satelliteMode == .banner { inside = false }
         setPointerInside(inside)
     }
 

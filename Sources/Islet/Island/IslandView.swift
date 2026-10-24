@@ -28,23 +28,26 @@ struct IslandRootView: View {
 }
 
 extension IslandRootView {
-    /// The second capsule beside the island: pops out of the island's edge and slides along with it.
+    /// The live activity: a bubble that pops out of the island's edge and slides along with it,
+    /// the island itself when nothing else is shown, or a banner over the island for a notice.
     @ViewBuilder
     var satellite: some View {
+        let mode = model.satelliteMode
         ZStack(alignment: .topLeading) {
-            if let activity = model.activities.current, let frame = model.satelliteFrame {
-                SatelliteView(activity: activity, activities: model.activities, hovering: model.satelliteHovering,
-                              style: model.layout.style, scale: model.layout.scale, height: frame.height,
-                              outline: model.layout.outline)
+            if let activity = model.activities.current, let mode, let frame = model.satelliteFrame {
+                SatelliteView(
+                    activity: activity, activities: model.activities, mode: mode, hovering: model.satelliteHovering,
+                    layout: model.layout, size: frame.size)
                     .frame(width: frame.width, height: frame.height)
                     .offset(x: frame.minX, y: frame.minY)
                     .transition(.asymmetric(
-                        insertion: .scale(scale: 0.5, anchor: .leading).combined(with: .opacity),
-                        removal: .scale(scale: 0.7, anchor: .leading).combined(with: .opacity)))
+                        insertion: .scale(scale: 0.5, anchor: mode == .bubble ? .leading : .center).combined(with: .opacity),
+                        removal: .scale(scale: 0.7, anchor: mode == .bubble ? .leading : .center).combined(with: .opacity)))
             }
         }
         .frame(width: model.layout.panelFrame.width, height: model.layout.panelFrame.height, alignment: .topLeading)
         .animation(IslandMotion.satellite, value: model.activities.current?.kind)
+        .animation(IslandMotion.satellite, value: mode)
         .animation(IslandMotion.satellite, value: model.satelliteHovering)
     }
 }
