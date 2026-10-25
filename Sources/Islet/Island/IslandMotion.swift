@@ -14,9 +14,17 @@ enum IslandMotion {
     static let appear = Animation.spring(duration: 0.46, bounce: 0.2)
     /// Shown → hidden.
     static let disappear = Animation.spring(duration: 0.32, bounce: 0)
-    /// The second capsule coming and going.
+    /// A live activity appearing (a card dropping out, the activity island taking the island's place).
     static let satellite = Animation.spring(duration: 0.46, bounce: 0.2)
-    /// The capsule's contents swapping (another activity, or buttons appearing).
+    /// A bubble coming out of the island's edge.
+    static let emerge = Animation.spring(duration: 0.5, bounce: 0.12)
+    /// A bubble going back into the island: no overshoot, so it does not pop out again at the end.
+    static let absorb = Animation.spring(duration: 0.42, bounce: 0)
+    /// A live activity going away, and its card closing back into its bubble: settles without wobbling.
+    static let dismiss = Animation.spring(duration: 0.34, bounce: 0)
+    /// The activity card opening out of its bubble or island.
+    static let cardOpen = Animation.spring(duration: 0.42, bounce: 0.16)
+    /// The activity's contents swapping (another activity, or another presentation).
     static let swap = Animation.easeInOut(duration: 0.2)
     /// The compact title changing length.
     static let title = Animation.smooth(duration: 0.30)
