@@ -628,8 +628,9 @@ private struct CountdownRing: View {
     }
 }
 
-/// The stopwatch drawn as its dial: a ring and a hand going round once a minute. As round and as centred
-/// as the timer's ring (the SF Symbol has a crown on top that pulls its circle below the centre).
+/// The stopwatch drawn as its dial: a solid ring and a hand going round once a minute. As round and as
+/// centred as the timer's ring (the SF Symbol has a crown on top that pulls its circle below the centre),
+/// and told apart from it at a glance: the timer is a faint track with a bright arc, this a bright ring.
 private struct StopwatchDial: View {
     let watch: Stopwatch
     let tint: Color
@@ -640,12 +641,12 @@ private struct StopwatchDial: View {
         TimelineView(.animation(minimumInterval: 0.1, paused: !watch.isRunning)) { context in
             let seconds = watch.elapsed(at: context.date).truncatingRemainder(dividingBy: 60)
             ZStack {
-                Circle().stroke(tint.opacity(0.28), lineWidth: lineWidth)
+                Circle().stroke(tint, lineWidth: lineWidth)
                 DialHand(angle: .degrees(seconds * 6))
                     .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 Circle()
                     .fill(tint)
-                    .frame(width: lineWidth * 1.8, height: lineWidth * 1.8)
+                    .frame(width: lineWidth * 1.2, height: lineWidth * 1.2)
             }
             .padding(lineWidth / 2)
         }
@@ -658,7 +659,7 @@ nonisolated struct DialHand: Shape {
 
     func path(in rect: CGRect) -> Path {
         let centre = CGPoint(x: rect.midX, y: rect.midY)
-        let length = min(rect.width, rect.height) / 2 * 0.62
+        let length = min(rect.width, rect.height) / 2 * 0.68
         let radians = angle.radians
         var path = Path()
         path.move(to: centre)
