@@ -279,7 +279,17 @@ struct SatelliteView: View {
             .font(.system(size: glyphSize * 0.9, weight: .semibold))
             .symbolRenderingMode(.monochrome)
             .foregroundStyle(tint)
+            .offset(Self.opticalOffset(for: symbol, size: glyphSize * 0.9))
             .frame(width: slot, height: slot)
+    }
+
+    /// Some symbols are not centred in their own box: a battery's tip is on the right, a bell's clapper
+    /// hangs below it, a triangle's weight is on its left. Nudged so the shape itself sits in the middle.
+    static func opticalOffset(for symbol: String, size: CGFloat) -> CGSize {
+        if symbol.hasPrefix("battery.") { return CGSize(width: size * 0.05, height: 0) }
+        if symbol.hasPrefix("bell") { return CGSize(width: 0, height: size * 0.04) }
+        if symbol.hasPrefix("play") { return CGSize(width: size * 0.08, height: 0) }
+        return .zero
     }
 
     private func value(_ text: String, tint: Color) -> some View {
@@ -413,6 +423,7 @@ struct SatelliteView: View {
             .font(.system(size: 26 * scale, weight: .semibold))
             .symbolRenderingMode(.monochrome)
             .foregroundStyle(tint)
+            .offset(Self.opticalOffset(for: symbol, size: 26 * scale))
     }
 
     private func bigValue(_ text: String, tint: Color) -> some View {
@@ -433,6 +444,7 @@ struct SatelliteView: View {
                 .font(.system(size: 28 * s, weight: .medium))
                 .symbolRenderingMode(.monochrome)
                 .foregroundStyle(noticeTint)
+                .offset(Self.opticalOffset(for: noticeSymbol, size: 28 * s))
                 .frame(width: 44 * s, height: 44 * s)
             VStack(alignment: .leading, spacing: 2 * s) {
                 Text(noticeTitle)
@@ -682,8 +694,7 @@ private struct SatelliteButton: View {
             Image(systemName: symbol)
                 .font(.system(size: size * 0.4, weight: .bold))
                 .foregroundStyle(glyph)
-                // A triangle's visual centre is right of its box's centre: nudge ▶ like Apple does.
-                .offset(x: symbol == "play.fill" ? size * 0.035 : 0)
+                .offset(SatelliteView.opticalOffset(for: symbol, size: size * 0.4))
                 .frame(width: size, height: size)
                 .background(Circle().fill(fill))
                 .contentShape(Circle())
