@@ -46,12 +46,14 @@ extension IslandRootView {
             }
         }
         .frame(width: model.layout.panelFrame.width, height: model.layout.panelFrame.height, alignment: .topLeading)
+        // A new activity springs in; going away has its own calmer animation in each transition.
+        // Opening and closing the card animate where they happen (IslandController), and a change
+        // of the island underneath moves the activity with the island's own spring.
         .animation(IslandMotion.satellite, value: model.activities.current?.kind)
-        .animation(IslandMotion.satellite, value: mode)
     }
 
-    /// A bubble comes out of the island like a drop; cards drop down from it; the activity island
-    /// takes the island's place.
+    /// A bubble comes out of the island like a drop and goes back into it; cards drop down from the
+    /// island and fold back up into it; the activity island takes the island's place.
     static func transition(for mode: SatelliteMode) -> AnyTransition {
         switch mode {
         case .bubble:
@@ -59,9 +61,11 @@ extension IslandRootView {
         case .expanded, .notice:
             .asymmetric(
                 insertion: .scale(scale: 0.6, anchor: .top).combined(with: .opacity),
-                removal: .scale(scale: 0.85, anchor: .top).combined(with: .opacity))
+                removal: .scale(scale: 0.5, anchor: .top).combined(with: .opacity).animation(IslandMotion.dismiss))
         case .island:
-            .scale(scale: 0.6, anchor: .center).combined(with: .opacity)
+            .asymmetric(
+                insertion: .scale(scale: 0.6, anchor: .center).combined(with: .opacity),
+                removal: .scale(scale: 0.6, anchor: .center).combined(with: .opacity).animation(IslandMotion.dismiss))
         }
     }
 }

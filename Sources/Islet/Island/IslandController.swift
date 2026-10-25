@@ -210,7 +210,10 @@ final class IslandController {
         cardVisited = false
         expandedKind = expanded ? viewModel.activities.current?.kind : nil
         guard viewModel.activityExpanded != expanded else { return }
-        viewModel.activityExpanded = expanded
+        // Opening springs out a little; closing settles back into the bubble without wobbling.
+        withAnimation(expanded ? IslandMotion.cardOpen : IslandMotion.dismiss) {
+            viewModel.activityExpanded = expanded
+        }
         refreshSatellite()
     }
 

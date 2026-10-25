@@ -305,5 +305,16 @@ struct GeometryTests {
         #expect(long.frame.width == layout.compact.frame.width, "never wider than the widest compact shape")
         #expect(short.frame.midX == layout.compact.frame.midX, "stays centred")
     }
+
+    @Test func fittedCompactIslandStartsOnAWholePointAndStaysCentred() {
+        // Any title width: the narrowed island must not land between pixels on a 1× monitor.
+        let layout = IslandLayoutEngine.layout(for: Self.monitor1x, settings: LayoutSettings(compactTitle: true))
+        #expect(layout.compact.frame.minX == layout.compact.frame.minX.rounded())
+        for title in stride(from: CGFloat(1), through: 260, by: 7) {
+            let fitted = layout.compact(fittingTitle: title).frame
+            #expect(fitted.minX == fitted.minX.rounded(), "title \(title)")
+            #expect(fitted.midX == layout.compact.frame.midX, "title \(title)")
+        }
+    }
 }
 

@@ -212,7 +212,13 @@ public struct IslandLayout: Equatable, Sendable {
             // The title sits in the left ear; both ears grow by the same amount to stay centred on the notch.
             compactBaseWidth + 2 * max(0, titleWidth + padding)
         }
-        let fitted = min(compact.frame.width, width.rounded(.up))
+        var fitted = min(compact.frame.width, width.rounded(.up))
+        // Same parity as the full width, so the narrowed shape keeps its centre and still starts on a
+        // whole point: a half-point edge would put the artwork, the bars and the bubble beside the
+        // island between pixels on a 1× screen.
+        if (compact.frame.width - fitted).truncatingRemainder(dividingBy: 2) != 0 {
+            fitted = min(compact.frame.width, fitted + 1)
+        }
         var spec = compact
         spec.frame = CGRect(x: compact.frame.midX - fitted / 2, y: compact.frame.minY, width: fitted, height: compact.frame.height)
         return spec

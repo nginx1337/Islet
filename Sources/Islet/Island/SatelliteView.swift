@@ -21,6 +21,7 @@ struct SatelliteView: View {
 
     /// 0 while a bubble is still inside the island, 1 once it is in its place (see ``AnyTransition/emerge``).
     @Environment(\.satelliteEmergence) private var emergence
+    @Environment(\.displayScale) private var displayScale
 
     private var size: CGSize { shape.frame.size }
     private var scale: CGFloat { layout.scale }
@@ -44,30 +45,60 @@ struct SatelliteView: View {
         // A bubble travels from inside the island's right end to its place.
         let travel = mode == .bubble ? size.width + SatellitePlacement.bubbleOffset(from: main) : 0
         let shift = -(1 - p) * travel
-        ZStack(alignment: .topLeading) {
-            ZStack {
-                background
-                content
-                    .id("\(activity.kind)-\(mode)")
-                    .transition(.opacity.animation(IslandMotion.swap))
+        // Everything fills the frame it is given, which the island view animates: the outline morphs
+        // from bubble to card and back. The content keeps its final size, sits at the top of a card or
+        // in the middle of a bubble, and is clipped by the morphing outline, so it never reflows or
+        // spills while the shape changes (like the island's own content).
+        ZStack {
+            background
+            Color.clear
+                .overlay(alignment: mode == .expanded || mode == .notice ? .top : .center) {
+                    ZStack {
+                        content
+                            .frame(width: size.width, height: size.height)
+                            .id("\(activity.kind)-\(mode)")
+                            .transition(.opacity.animation(IslandMotion.swap))
+                    }
                     // The ring or glyph shows up once the bubble is mostly out.
                     .opacity(mode == .bubble ? Self.ease((p - 0.55) / 0.35) : 1)
-            }
-            .frame(width: size.width, height: size.height)
-            .offset(x: shift)
-            .mask(alignment: .topLeading) {
-                // Only what is outside the island shows, so the bubble seems to grow out of its edge.
-                Rectangle()
-                    .frame(width: 6000, height: size.height + 60)
-                    .offset(x: mode == .bubble ? -SatellitePlacement.bubbleOffset(from: main) : -3000, y: -30)
-            }
-            drop(progress: p, shift: shift)
+                }
+                .clipShape(contentClip)
         }
-        .frame(width: size.width, height: size.height, alignment: .topLeading)
-        .contentShape(notchShaped ? AnyShape(Rectangle()) : AnyShape(RoundedRectangle(cornerRadius: shape.cornerRadius, style: .continuous)))
+        .offset(x: shift)
+        .mask(alignment: .topLeading) {
+            // Only what is outside the island shows, so the bubble seems to grow out of its edge.
+            Rectangle()
+                .frame(width: 6000, height: size.height + 60)
+                .offset(x: mode == .bubble ? -SatellitePlacement.bubbleOffset(from: main) : -3000, y: -30)
+        }
+        .overlay(alignment: .topLeading) { drop(progress: p, shift: shift) }
+        .contentShape(contentClip)
         .onTapGesture(perform: onTap)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(accessibilityText)
+    }
+
+    /// The outline without the notch flares: rounded all round, or square at the top in the notch look.
+    private var contentClip: UnevenRoundedRectangle {
+        let r = shape.cornerRadius
+        let top: CGFloat = notchShaped ? 0 : r
+        return UnevenRoundedRectangle(
+            topLeadingRadius: top, bottomLeadingRadius: r, bottomTrailingRadius: r, topTrailingRadius: top,
+            style: .continuous)
+    }
+
+    // MARK: Pixel grid
+
+    /// A diameter in whole, even device pixels, so a centred ring has crisp, equal edges.
+    private func ringSize(_ points: CGFloat) -> CGFloat {
+        let s = max(displayScale, 1)
+        return max(2, (points * s / 2).rounded() * 2) / s
+    }
+
+    /// A line width in whole device pixels.
+    private func line(_ points: CGFloat) -> CGFloat {
+        let s = max(displayScale, 1)
+        return max(1, (points * s).rounded()) / s
     }
 
     private static func ease(_ t: CGFloat) -> CGFloat {
@@ -181,13 +212,14 @@ struct SatelliteView: View {
         case .countdown(let timer) where timer.isFinished:
             glyph("bell.fill", tint: .orange)
         case .countdown(let timer):
-            CountdownRing(timer: timer, tint: .orange, lineWidth: 2.5 * scale)
-                .frame(width: compactHeight * 0.56, height: compactHeight * 0.56)
-        case .stopwatch:
-            glyph("stopwatch.fill", tint: .orange)
+            CountdownRing(timer: timer, tint: .orange, lineWidth: line(2.5 * scale))
+                .frame(width: ringSize(compactHeight * 0.56), height: ringSize(compactHeight * 0.56))
+        case .stopwatch(let watch):
+            StopwatchDial(watch: watch, tint: .orange, lineWidth: line(2.5 * scale))
+                .frame(width: ringSize(compactHeight * 0.56), height: ringSize(compactHeight * 0.56))
         case .transfer(let info):
-            ProgressRing(fraction: info.fraction, tint: .blue, lineWidth: 2.5 * scale)
-                .frame(width: compactHeight * 0.56, height: compactHeight * 0.56)
+            ProgressRing(fraction: info.fraction, tint: .blue, lineWidth: line(2.5 * scale))
+                .frame(width: ringSize(compactHeight * 0.56), height: ringSize(compactHeight * 0.56))
         case .power(let info):
             glyph(powerSymbol(info), tint: powerTint(info))
         case .headphones(let name):
@@ -201,14 +233,16 @@ struct SatelliteView: View {
         case .countdown(let timer) where timer.isFinished:
             glyph("bell.fill", tint: .orange)
         case .countdown(let timer):
-            CountdownRing(timer: timer, tint: .orange, lineWidth: 2.5 * scale)
-                .frame(width: glyphSize, height: glyphSize)
+            CountdownRing(timer: timer, tint: .orange, lineWidth: line(2.5 * scale))
+                .frame(width: ringSize(glyphSize), height: ringSize(glyphSize))
                 .frame(width: slot, height: slot)
-        case .stopwatch:
-            glyph("stopwatch.fill", tint: .orange)
+        case .stopwatch(let watch):
+            StopwatchDial(watch: watch, tint: .orange, lineWidth: line(2.5 * scale))
+                .frame(width: ringSize(glyphSize), height: ringSize(glyphSize))
+                .frame(width: slot, height: slot)
         case .transfer(let info):
-            ProgressRing(fraction: info.fraction, tint: .blue, lineWidth: 2.5 * scale)
-                .frame(width: glyphSize, height: glyphSize)
+            ProgressRing(fraction: info.fraction, tint: .blue, lineWidth: line(2.5 * scale))
+                .frame(width: ringSize(glyphSize), height: ringSize(glyphSize))
                 .frame(width: slot, height: slot)
         case .power(let info):
             glyph(powerSymbol(info), tint: powerTint(info))
@@ -245,7 +279,17 @@ struct SatelliteView: View {
             .font(.system(size: glyphSize * 0.9, weight: .semibold))
             .symbolRenderingMode(.monochrome)
             .foregroundStyle(tint)
+            .offset(Self.opticalOffset(for: symbol, size: glyphSize * 0.9))
             .frame(width: slot, height: slot)
+    }
+
+    /// Some symbols are not centred in their own box: a battery's tip is on the right, a bell's clapper
+    /// hangs below it, a triangle's weight is on its left. Nudged so the shape itself sits in the middle.
+    static func opticalOffset(for symbol: String, size: CGFloat) -> CGSize {
+        if symbol.hasPrefix("battery.") { return CGSize(width: size * 0.05, height: 0) }
+        if symbol.hasPrefix("bell") { return CGSize(width: 0, height: size * 0.04) }
+        if symbol.hasPrefix("play") { return CGSize(width: size * 0.08, height: 0) }
+        return .zero
     }
 
     private func value(_ text: String, tint: Color) -> some View {
@@ -263,7 +307,7 @@ struct SatelliteView: View {
         let s = scale
         return HStack(spacing: 14 * s) {
             cardLeading
-                .frame(width: 46 * s, height: 46 * s)
+                .frame(width: ringSize(46 * s), height: ringSize(46 * s))
             VStack(alignment: .leading, spacing: 1 * s) {
                 Text(cardLabel)
                     .font(.system(size: 13 * s, weight: .medium))
@@ -286,11 +330,11 @@ struct SatelliteView: View {
         case .countdown(let timer) where timer.isFinished:
             bigGlyph("bell.fill", tint: .orange)
         case .countdown(let timer):
-            CountdownRing(timer: timer, tint: .orange, lineWidth: 4 * s)
-        case .stopwatch:
-            bigGlyph("stopwatch.fill", tint: .orange)
+            CountdownRing(timer: timer, tint: .orange, lineWidth: line(4 * s))
+        case .stopwatch(let watch):
+            StopwatchDial(watch: watch, tint: .orange, lineWidth: line(4 * s))
         case .transfer(let info):
-            ProgressRing(fraction: info.fraction, tint: .blue, lineWidth: 4 * s)
+            ProgressRing(fraction: info.fraction, tint: .blue, lineWidth: line(4 * s))
         case .power(let info):
             bigGlyph(powerSymbol(info), tint: powerTint(info))
         case .headphones(let name):
@@ -379,6 +423,7 @@ struct SatelliteView: View {
             .font(.system(size: 26 * scale, weight: .semibold))
             .symbolRenderingMode(.monochrome)
             .foregroundStyle(tint)
+            .offset(Self.opticalOffset(for: symbol, size: 26 * scale))
     }
 
     private func bigValue(_ text: String, tint: Color) -> some View {
@@ -399,6 +444,7 @@ struct SatelliteView: View {
                 .font(.system(size: 28 * s, weight: .medium))
                 .symbolRenderingMode(.monochrome)
                 .foregroundStyle(noticeTint)
+                .offset(Self.opticalOffset(for: noticeSymbol, size: 28 * s))
                 .frame(width: 44 * s, height: 44 * s)
             VStack(alignment: .leading, spacing: 2 * s) {
                 Text(noticeTitle)
@@ -547,7 +593,8 @@ nonisolated struct EmergenceModifier: ViewModifier, Animatable {
 extension AnyTransition {
     /// The bubble comes out of the island's edge like a drop, and goes back into it when it ends.
     static var emerge: AnyTransition {
-        .modifier(active: EmergenceModifier(progress: 0), identity: EmergenceModifier(progress: 1))
+        let drop = AnyTransition.modifier(active: EmergenceModifier(progress: 0), identity: EmergenceModifier(progress: 1))
+        return .asymmetric(insertion: drop.animation(IslandMotion.emerge), removal: drop.animation(IslandMotion.absorb))
     }
 }
 
@@ -593,6 +640,46 @@ private struct CountdownRing: View {
     }
 }
 
+/// The stopwatch drawn as its dial: a solid ring and a hand going round once a minute. As round and as
+/// centred as the timer's ring (the SF Symbol has a crown on top that pulls its circle below the centre),
+/// and told apart from it at a glance: the timer is a faint track with a bright arc, this a bright ring.
+private struct StopwatchDial: View {
+    let watch: Stopwatch
+    let tint: Color
+    let lineWidth: CGFloat
+
+    var body: some View {
+        // Ten updates a second while it runs and is on screen; the hand moves 0.6° per update.
+        TimelineView(.animation(minimumInterval: 0.1, paused: !watch.isRunning)) { context in
+            let seconds = watch.elapsed(at: context.date).truncatingRemainder(dividingBy: 60)
+            ZStack {
+                Circle().stroke(tint, lineWidth: lineWidth)
+                DialHand(angle: .degrees(seconds * 6))
+                    .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                Circle()
+                    .fill(tint)
+                    .frame(width: lineWidth * 1.2, height: lineWidth * 1.2)
+            }
+            .padding(lineWidth / 2)
+        }
+    }
+}
+
+/// A hand from the centre, pointing at `angle` clockwise from twelve.
+nonisolated struct DialHand: Shape {
+    var angle: Angle
+
+    func path(in rect: CGRect) -> Path {
+        let centre = CGPoint(x: rect.midX, y: rect.midY)
+        let length = min(rect.width, rect.height) / 2 * 0.68
+        let radians = angle.radians
+        var path = Path()
+        path.move(to: centre)
+        path.addLine(to: CGPoint(x: centre.x + sin(radians) * length, y: centre.y - cos(radians) * length))
+        return path
+    }
+}
+
 /// Round button like the ones on the iPhone: a filled circle with a dark or light glyph.
 private struct SatelliteButton: View {
     let symbol: String
@@ -607,6 +694,7 @@ private struct SatelliteButton: View {
             Image(systemName: symbol)
                 .font(.system(size: size * 0.4, weight: .bold))
                 .foregroundStyle(glyph)
+                .offset(SatelliteView.opticalOffset(for: symbol, size: size * 0.4))
                 .frame(width: size, height: size)
                 .background(Circle().fill(fill))
                 .contentShape(Circle())
