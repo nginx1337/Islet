@@ -128,7 +128,8 @@ struct ExpandedMetrics {
     var padding: CGFloat { 20 * s }
     var art: CGFloat { 56 * s }
     var spacing: CGFloat { 10 * s }
-    let progressHeight: CGFloat = 14
+    /// Room for the progress bar at its thickest, and for a comfortable target to grab.
+    var progressHeight: CGFloat { 16 * s }
     var block: CGFloat { art + spacing + progressHeight }
     var artCenter: CGPoint {
         let top = inset + max(0, (size.height - inset - block) / 2)
@@ -364,11 +365,13 @@ struct PressableStyle: ButtonStyle {
     }
 }
 
-/// Elapsed time, seek bar, remaining time. Redraws 30 times a second only while expanded and playing.
+/// Elapsed time, progress bar, remaining time, as in Apple's Now Playing. Redraws 30 times a second
+/// only while expanded and playing, and not while the bar is held.
 struct ProgressRow: View {
     let media: NowPlayingModel
     let scale: CGFloat
     var active = true
+    /// Where the held bar points (0…1); nil when it is not held.
     @State private var scrub: Double?
 
     var body: some View {
@@ -376,72 +379,134 @@ struct ProgressRow: View {
         let playing = active && state?.isPlaying == true && scrub == nil
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !playing)) { context in
             let duration = state?.duration
-            let position = state.map { PlaybackTimeline.position(of: $0, at: context.date) } ?? 0
+            // A timeline that was paused (bar held, island closed) can hand back its last date once
+            // it runs again; the clock never goes back, so neither does the bar.
+            let now = max(context.date, Date())
+            let position = state.map { PlaybackTimeline.position(of: $0, at: now) } ?? 0
             let shown = scrub.map { $0 * (duration ?? 0) } ?? position
-            HStack(spacing: 8 * scale) {
-                Text(PlaybackTimeline.format(shown))
-                    .frame(width: 44 * scale, alignment: .trailing)
+            // Hour-long items need room for "−1:02:03".
+            let labelWidth: CGFloat = ((duration ?? 0) >= 3600 ? 52 : 40) * scale
+            let elapsedText = PlaybackTimeline.format(shown)
+            // Always with a minus, down to "−0:00" at the very end, as on the iPhone.
+            let remainingText = duration.map { "−" + PlaybackTimeline.format(max(0, $0 - shown)) } ?? ""
+            let valueText = duration.map {
+                tr("\(elapsedText) из \(PlaybackTimeline.format($0))", "\(elapsedText) of \(PlaybackTimeline.format($0))")
+            } ?? ""
+            HStack(spacing: 10 * scale) {
+                timeLabel(elapsedText, width: labelWidth, alignment: .trailing)
                 SeekBar(
                     fraction: duration.map { $0 > 0 ? shown / $0 : 0 } ?? 0,
-                    accent: Color(media.accent.nsColor),
-                    enabled: duration != nil,
+                    enabled: active && duration != nil,
+                    scale: scale,
+                    valueText: valueText,
                     scrub: $scrub,
                     commit: { fraction in
                         if let duration { media.perform(.seek(fraction * duration)) }
                     })
-                Text(duration.map { PlaybackTimeline.format(shown - $0) } ?? "")
-                    .frame(width: 44 * scale, alignment: .leading)
+                timeLabel(remainingText, width: labelWidth, alignment: .leading)
             }
-            .font(.system(size: 10.5 * scale, weight: .medium).monospacedDigit())
-            .foregroundStyle(.white.opacity(0.55))
         }
+        // The bar cannot stay held once the island has closed under the pointer.
+        .onChange(of: active) { _, isActive in
+            if !isActive { scrub = nil }
+        }
+    }
+
+    /// The times brighten while the bar is held, as on the iPhone.
+    private func timeLabel(_ text: String, width: CGFloat, alignment: Alignment) -> some View {
+        Text(text)
+            .font(.system(size: 11 * scale, weight: .semibold).monospacedDigit())
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            // Only the colour fades; the digits themselves change at once.
+            .animation(IslandMotion.hover) { $0.foregroundStyle(.white.opacity(scrub == nil ? 0.5 : 0.85)) }
+            .frame(width: width, alignment: alignment)
+            .accessibilityHidden(true)
     }
 }
 
-/// Thin progress bar; click or drag to seek.
+/// Progress bar in the style of Apple's Now Playing: a white fill on a faint track, no knob.
+/// It grows thicker under the pointer and thicker still while held. Click or drag to seek; dragged
+/// past an end it stretches a little that way, like rubber, and springs back when let go.
 struct SeekBar: View {
     let fraction: Double
-    let accent: Color
     let enabled: Bool
+    let scale: CGFloat
+    /// What VoiceOver reads as the value ("1:05 of 3:20").
+    let valueText: String
     @Binding var scrub: Double?
     let commit: (Double) -> Void
     @State private var hovering = false
+    /// The bar is held. Gesture state resets by itself when the drag ends or is cancelled (say, the
+    /// island closed under the pointer), so the bar never stays stuck in the held look.
+    @GestureState private var hold: Hold? = nil
+
+    nonisolated struct Hold: Sendable {
+        /// Position under the pointer, 0…1.
+        var fraction: Double
+        /// How far the bar is pulled past an end (negative: past the start).
+        var stretch: CGFloat
+    }
 
     var body: some View {
         GeometryReader { geometry in
             let width = max(1, geometry.size.width)
-            let value = min(max(fraction, 0), 1)
-            let active = hovering || scrub != nil
+            let held = hold != nil
+            let value = hold?.fraction ?? min(max(fraction, 0), 1)
+            let stretch = hold?.stretch ?? 0
+            let pulled = width + abs(stretch)
+            // Thicker under the pointer and while held; a little thinner while stretched.
+            let thickness: CGFloat = (held ? 10 : (hovering ? 7 : 5)) * scale
+            let squeeze: CGFloat = 1 - 0.25 * abs(stretch) / (Scrubber.maxStretch * scale)
             ZStack(alignment: .leading) {
-                Capsule().fill(.white.opacity(0.18))
-                Capsule().fill(accent).frame(width: width * value)
-                Circle().fill(.white)
-                    .frame(width: active ? 11 : 0, height: active ? 11 : 0)
-                    .offset(x: width * value - (active ? 5.5 : 0))
-                    .shadow(color: .black.opacity(0.4), radius: 2)
+                Rectangle().fill(.white.opacity(held ? 0.28 : 0.2))
+                Rectangle().fill(.white.opacity(held ? 1 : 0.92))
+                    .frame(width: pulled * value)
             }
-            .frame(height: active ? 6 : 4)
-            .frame(maxHeight: .infinity)
+            .frame(width: pulled, height: thickness * squeeze)
+            // The fill is cut by the track, so its start is round and its end is straight.
+            .clipShape(Capsule())
+            .offset(x: min(0, stretch))
+            .frame(width: width, height: geometry.size.height, alignment: .leading)
             .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { drag in
-                        guard enabled else { return }
-                        scrub = min(max(drag.location.x / width, 0), 1)
-                    }
-                    .onEnded { drag in
-                        guard enabled else { return }
-                        let final = min(max(drag.location.x / width, 0), 1)
-                        commit(final)
-                        scrub = nil
-                    })
-            .animation(.easeOut(duration: 0.15), value: active)
+            .gesture(drag(width: width))
+            .animation(IslandMotion.scrub, value: held)
+            .animation(IslandMotion.hover, value: hovering)
         }
-        .frame(height: 14)
         .onHover { hovering = $0 && enabled }
+        // A collapsing island takes the bar away without telling it the pointer left.
+        .onChange(of: enabled) { _, isEnabled in
+            if !isEnabled { hovering = false }
+        }
+        .onChange(of: hold?.fraction) { _, new in scrub = new }
         .accessibilityElement()
         .accessibilityLabel(tr("Позиция", "Position"))
-        .accessibilityValue("\(Int(fraction * 100))%")
+        .accessibilityValue(valueText)
+        .accessibilityAdjustableAction { direction in
+            guard enabled else { return }
+            switch direction {
+            case .increment: commit(min(1, fraction + 0.05))
+            case .decrement: commit(max(0, fraction - 0.05))
+            @unknown default: break
+            }
+        }
+    }
+
+    private func drag(width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .updating($hold) { drag, hold, _ in
+                guard enabled else { return }
+                let x = drag.location.x
+                hold = Hold(
+                    fraction: Scrubber.fraction(atX: x, width: width),
+                    stretch: Scrubber.stretch(
+                        forOvershoot: Scrubber.overshoot(atX: x, width: width),
+                        limit: Scrubber.maxStretch * scale))
+            }
+            .onEnded { drag in
+                guard enabled else { return }
+                commit(Scrubber.fraction(atX: drag.location.x, width: width))
+            }
     }
 }
 

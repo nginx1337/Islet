@@ -30,6 +30,10 @@ enum IslandMotion {
     static let title = Animation.smooth(duration: 0.30)
     /// Button press feedback.
     static let press = Animation.spring(duration: 0.18, bounce: 0)
+    /// The progress bar thickening when held and springing back from a stretch when let go.
+    static let scrub = Animation.spring(duration: 0.32, bounce: 0.18)
+    /// Something reacting to the pointer passing over it.
+    static let hover = Animation.easeOut(duration: 0.18)
 
     /// Content appearing: a short fade that starts once the shape has begun to move.
     static func fadeIn(delay: Double = 0.08) -> Animation { .easeOut(duration: 0.16).delay(delay) }

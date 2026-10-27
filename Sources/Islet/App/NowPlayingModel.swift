@@ -22,6 +22,8 @@ final class NowPlayingModel {
     @ObservationIgnored private var artworkTrackID: String?
     @ObservationIgnored private var secondsOnlyTracks = Set<String>()
     @ObservationIgnored private var pendingNextCheck: DispatchWorkItem?
+    /// The last seek, until the player confirms it.
+    @ObservationIgnored private var seekHold: SeekHold?
     @ObservationIgnored private let downloads: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.httpCookieStorage = nil
@@ -37,7 +39,7 @@ final class NowPlayingModel {
 
     init(switcher: SourceSwitcher) {
         self.switcher = switcher
-        switcher.onState = { [weak self] in self?.apply($0) }
+        switcher.onState = { [weak self] in self?.received($0) }
         switcher.onStatus = { [weak self] status in
             self?.sourceStatus = status
             Log.source.info("source status: \(String(describing: status), privacy: .public)")
@@ -54,13 +56,27 @@ final class NowPlayingModel {
     }
 
     func perform(_ command: PlaybackCommand) {
-        switcher.perform(command)
-        // Seek feels instant: move the local position now, the player confirms a moment later.
-        if case .seek(let seconds) = command, var state {
-            state.elapsed = seconds
-            state.timestamp = Date()
-            apply(state)
+        // A seek feels instant: the bar moves now and stays there until the player confirms it
+        // (its next updates may still carry the old position).
+        if case .seek(let seconds) = command, let state {
+            let now = Date()
+            let hold = SeekHold(target: seconds, state: state, at: now)
+            seekHold = hold
+            apply(hold.applied(to: state, at: now))
         }
+        switcher.perform(command)
+    }
+
+    /// An update from the player, with the position of a seek it has not confirmed yet.
+    private func received(_ new: NowPlayingState?) {
+        guard var hold = seekHold, let new else {
+            seekHold = nil
+            apply(new)
+            return
+        }
+        let shown = hold.reconcile(new, at: Date())
+        seekHold = hold.isFinished ? nil : hold
+        apply(shown)
     }
 
     /// "Back": restart the track after 3 s, otherwise the previous track (or −15 s).
