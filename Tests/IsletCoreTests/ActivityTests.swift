@@ -303,7 +303,10 @@ struct SatelliteGeometryTests {
                         #expect(abs(notice.midX - layout.compact.frame.midX) <= 0.5, "centred on it: \(label)")
                         #expect(notice.width > layout.compactBaseWidth, "wider than the island at rest: \(label)")
                         if main.opacity > 0 {
-                            #expect(notice.minX <= main.frame.minX && notice.maxX >= main.frame.maxX, "covers it: \(label)")
+                            // Comes out of the island on both sides, so the stretch is always visible.
+                            let growth = (SatellitePlacement.noticeGrowth * SatellitePlacement.contentScale(layout)).rounded()
+                            #expect(notice.minX <= main.frame.minX - growth + 0.5, "past its left end: \(label)")
+                            #expect(notice.maxX >= main.frame.maxX + growth - 0.5, "past its right end: \(label)")
                         }
                     }
                 }

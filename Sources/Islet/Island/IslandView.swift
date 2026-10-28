@@ -22,63 +22,8 @@ struct IslandRootView: View {
             .offset(x: shape.frame.minX, y: shape.frame.minY)
         }
         .frame(width: layout.panelFrame.width, height: layout.panelFrame.height, alignment: .topLeading)
-        .overlay(alignment: .topLeading) { satellite }
+        .overlay(alignment: .topLeading) { SatelliteLayer(model: model) }
         .environment(\.colorScheme, .dark)
-    }
-}
-
-extension IslandRootView {
-    /// The live activity: a bubble that comes out of the island's edge, the island itself when nothing
-    /// else plays, its card when clicked open, or a notice the island stretches into.
-    @ViewBuilder
-    var satellite: some View {
-        let mode = model.satelliteMode
-        ZStack(alignment: .topLeading) {
-            if let activity = model.activities.current, let mode, let shape = model.satelliteShape {
-                SatelliteView(
-                    activity: activity, activities: model.activities, mode: mode, layout: model.layout,
-                    shape: shape, main: model.shape, onTap: { model.onSatelliteClick?() })
-                    .frame(width: shape.frame.width, height: shape.frame.height)
-                    // A notice only shows something: clicks reach the island and the menu bar under it.
-                    .allowsHitTesting(mode != .notice)
-                    .offset(x: shape.frame.minX, y: shape.frame.minY)
-                    .transition(Self.transition(for: mode))
-                    // Another activity, or a notice giving way to a bubble because the island opened
-                    // under it, is a new view: the old one goes back into the island and the new one
-                    // comes out of it, rather than one shape stretching into the other across the island.
-                    // A bubble, its card and the activity island stay one view and morph into each other.
-                    .id(Self.identity(of: activity, mode: mode))
-            }
-        }
-        .frame(width: model.layout.panelFrame.width, height: model.layout.panelFrame.height, alignment: .topLeading)
-        // A new activity springs in; going away has its own calmer animation in each transition.
-        // Opening and closing the card animate where they happen (IslandController), and a change
-        // of the island underneath moves the activity with the island's own spring.
-        .animation(IslandMotion.satellite, value: model.activities.current?.kind)
-        // Hidden or shown with the island by a wheel click: goes and comes back with it.
-        .animation(IslandMotion.satellite, value: model.isSuppressed)
-    }
-
-    static func identity(of activity: LiveActivity, mode: SatelliteMode) -> String {
-        "\(activity.kind.rawValue)-\(mode == .notice ? "notice" : "activity")"
-    }
-
-    /// A bubble comes out of the island like a drop and goes back into it; a notice stretches out of the
-    /// island sideways and shrinks back into it; cards drop down from the island and fold back up into
-    /// it; the activity island takes the island's place.
-    static func transition(for mode: SatelliteMode) -> AnyTransition {
-        switch mode {
-        case .bubble, .notice:
-            .emerge
-        case .expanded:
-            .asymmetric(
-                insertion: .scale(scale: 0.6, anchor: .top).combined(with: .opacity),
-                removal: .scale(scale: 0.5, anchor: .top).combined(with: .opacity).animation(IslandMotion.dismiss))
-        case .island:
-            .asymmetric(
-                insertion: .scale(scale: 0.6, anchor: .center).combined(with: .opacity),
-                removal: .scale(scale: 0.6, anchor: .center).combined(with: .opacity).animation(IslandMotion.dismiss))
-        }
     }
 }
 

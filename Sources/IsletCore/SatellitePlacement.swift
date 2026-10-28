@@ -37,6 +37,9 @@ public enum SatellitePlacement {
     public static let noticeWidth: CGFloat = 220
     /// Width of each side of a physical notch that holds a notice ("Low battery" on the left).
     public static let noticeEar: CGFloat = 120
+    /// A notice is at least this much wider than the island on each side, so the island visibly
+    /// stretches into it even when a long title already makes it wide (scale 1).
+    public static let noticeGrowth: CGFloat = 24
     /// Height of the expanded activity card below the menu bar or notch (scale 1); it is as wide as
     /// the expanded music island.
     public static let cardHeight: CGFloat = 84
@@ -98,9 +101,10 @@ public enum SatellitePlacement {
             let base = hasPhysicalNotch(layout)
                 ? layout.notchWidth + 2 * (noticeEar * c).rounded()
                 : (noticeWidth * c).rounded()
-            // The island stretches into it, so it is never narrower than the island (a long compact
-            // title makes the island wider) and covers it completely.
-            return centred(width: max(base, main.frame.width), height: height)
+            // The island stretches into it: it covers the island completely and always comes out of it
+            // on both sides, however wide a long compact title makes the island.
+            let grown = main.opacity > 0 ? main.frame.width + 2 * (noticeGrowth * c).rounded() : 0
+            return centred(width: max(base, grown), height: height)
         }
     }
 }

@@ -20,7 +20,7 @@ struct SatelliteView: View {
     let onTap: () -> Void
 
     /// 0 while a bubble is still inside the island (or a notice is no wider than the island), 1 once it is
-    /// in its place (see ``AnyTransition/emerge``).
+    /// in its place (see ``SatelliteEntrance``). A spring may take a notice a little past 1.
     @Environment(\.satelliteEmergence) private var emergence
     @Environment(\.displayScale) private var displayScale
 
@@ -48,8 +48,10 @@ struct SatelliteView: View {
         // A bubble travels from inside the island's right end to its place.
         let travel = mode == .bubble ? size.width + SatellitePlacement.bubbleOffset(from: main) : 0
         let shift = -(1 - p) * travel
-        // A notice stretches out of the island sideways: the pill grows from the island's width to its own.
-        let width = mode == .notice ? noticeStart + (size.width - noticeStart) * p : size.width
+        // A notice stretches out of the island sideways: the pill grows from the island's width to its own,
+        // a touch past it with the spring and back.
+        let stretch = min(max(emergence, 0), 1.08)
+        let width = mode == .notice ? noticeStart + (size.width - noticeStart) * stretch : size.width
         // Everything fills the frame it is given, which the island view animates: the outline morphs
         // from bubble to card and back. The content keeps its final size, sits at the top of a card or
         // in the middle of a bubble, and is clipped by the morphing outline, so it never reflows or
@@ -584,33 +586,148 @@ struct SatelliteView: View {
     }
 }
 
-// MARK: - Coming out of the island
+// MARK: - Coming and going
 
 extension EnvironmentValues {
-    /// How far a bubble has come out of the island: 0 still inside it, 1 in its place.
+    /// How far an activity has come out of the island: 0 still inside it, 1 in its place.
     @Entry var satelliteEmergence: CGFloat = 1
 }
 
-/// Animates ``EnvironmentValues/satelliteEmergence`` while the bubble comes out of the island or goes back.
-nonisolated struct EmergenceModifier: ViewModifier, Animatable {
+/// What an activity looks like at one moment: enough to draw it while it goes away.
+struct SatelliteSnapshot {
+    let activity: LiveActivity
+    let mode: SatelliteMode
+    let shape: ShapeSpec
+    /// The music island's outline at that moment.
+    let main: ShapeSpec
+    let layout: IslandLayout
+
+    /// Another activity, or a notice giving way to a bubble, is a new view that comes out of the island
+    /// while the old one goes back in. A bubble, its card and the activity island are one view that
+    /// morphs from one into the other.
+    var identity: String {
+        "\(activity.kind.rawValue)-\(mode == .notice ? "notice" : "activity")"
+    }
+}
+
+/// An activity on its way out, drawn from its last look.
+struct LeavingSatellite: Identifiable {
+    let id = UUID()
+    let snapshot: SatelliteSnapshot
+    /// The island opened under it: it gets out of the way at once instead of going back into the island.
+    let quick: Bool
+
+    var exitAnimation: Animation {
+        if quick { return IslandMotion.quickExit }
+        switch snapshot.mode {
+        case .bubble, .notice: return IslandMotion.absorb
+        case .expanded, .island: return IslandMotion.dismiss
+        }
+    }
+
+    /// How long it stays drawn: its exit animation, then it is dropped.
+    var exitDuration: Double {
+        if quick { return IslandMotion.quickExitDuration }
+        switch snapshot.mode {
+        case .bubble, .notice: return IslandMotion.absorbDuration
+        case .expanded, .island: return IslandMotion.dismissDuration
+        }
+    }
+}
+
+/// The activity layer above the island: the current activity, and any that are still animating out.
+///
+/// Coming and going are driven here rather than by SwiftUI transitions: each activity animates its own
+/// progress when it appears, and one that leaves is kept, drawn from its last look, for exactly as long
+/// as its exit animation (``IslandViewModel/syncSatellite()``), so it can never be left behind on screen.
+struct SatelliteLayer: View {
+    let model: IslandViewModel
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(model.leavingSatellites) { item in
+                SatelliteHost(snapshot: item.snapshot, activities: model.activities, exit: item.exitAnimation, onTap: {})
+            }
+            if let snapshot = model.satelliteSnapshot {
+                SatelliteHost(
+                    snapshot: snapshot, activities: model.activities, exit: nil,
+                    onTap: { model.onSatelliteClick?() })
+                    .id(snapshot.identity)
+                    .transition(.identity)
+            }
+        }
+        .frame(width: model.layout.panelFrame.width, height: model.layout.panelFrame.height, alignment: .topLeading)
+    }
+}
+
+/// One activity in its place, with its entrance, or with its exit when it is leaving.
+struct SatelliteHost: View {
+    let snapshot: SatelliteSnapshot
+    let activities: ActivityModel
+    /// How it goes away; nil for the current activity, which comes in instead.
+    let exit: Animation?
+    let onTap: () -> Void
+    @State private var progress: CGFloat
+
+    init(snapshot: SatelliteSnapshot, activities: ActivityModel, exit: Animation?, onTap: @escaping () -> Void) {
+        self.snapshot = snapshot
+        self.activities = activities
+        self.exit = exit
+        self.onTap = onTap
+        _progress = State(initialValue: exit == nil ? 0 : 1)
+    }
+
+    var body: some View {
+        let s = snapshot
+        SatelliteView(
+            activity: s.activity, activities: activities, mode: s.mode, layout: s.layout,
+            shape: s.shape, main: s.main, onTap: onTap)
+            .modifier(SatelliteEntrance(progress: progress, mode: s.mode))
+            .frame(width: s.shape.frame.width, height: s.shape.frame.height)
+            // A notice only shows something: clicks reach the island and the menu bar under it.
+            .allowsHitTesting(exit == nil && s.mode != .notice)
+            .offset(x: s.shape.frame.minX, y: s.shape.frame.minY)
+            .onAppear {
+                withAnimation(exit ?? Self.entrance(for: s.mode)) {
+                    progress = exit == nil ? 1 : 0
+                }
+            }
+    }
+
+    /// A bubble comes out of the island's edge like a drop, a notice stretches out of the island,
+    /// a card drops down from it, the activity island takes its place.
+    private static func entrance(for mode: SatelliteMode) -> Animation {
+        switch mode {
+        case .bubble: IslandMotion.emerge
+        case .notice: IslandMotion.noticeOpen
+        case .expanded: IslandMotion.cardOpen
+        case .island: IslandMotion.satellite
+        }
+    }
+}
+
+/// How far an activity has come out: a bubble's travel and a notice's stretch (read by the view from
+/// the environment), and the scale and fade of a card or of the activity island.
+nonisolated struct SatelliteEntrance: ViewModifier, Animatable {
     var progress: CGFloat
+    let mode: SatelliteMode
 
     var animatableData: CGFloat {
         get { progress }
         set { progress = newValue }
     }
 
-    @MainActor
+    @MainActor @ViewBuilder
     func body(content: Content) -> some View {
-        content.environment(\.satelliteEmergence, progress)
-    }
-}
-
-extension AnyTransition {
-    /// The bubble comes out of the island's edge like a drop, and goes back into it when it ends.
-    static var emerge: AnyTransition {
-        let drop = AnyTransition.modifier(active: EmergenceModifier(progress: 0), identity: EmergenceModifier(progress: 1))
-        return .asymmetric(insertion: drop.animation(IslandMotion.emerge), removal: drop.animation(IslandMotion.absorb))
+        let p = min(max(progress, 0), 1)
+        switch mode {
+        case .bubble, .notice:
+            content.environment(\.satelliteEmergence, progress)
+        case .expanded:
+            content.scaleEffect(0.6 + 0.4 * p, anchor: .top).opacity(Double(p))
+        case .island:
+            content.scaleEffect(0.6 + 0.4 * p, anchor: .center).opacity(Double(p))
+        }
     }
 }
 
