@@ -2,8 +2,25 @@ import AppKit
 import IsletCore
 import SwiftUI
 
-// The pages of the settings window. Every page is a grouped form: a section per topic, a coloured
-// icon and a grey explanation on each row.
+// The pages of the settings window, in the manner of System Settings: a header with the page's icon
+// (or a live preview of the island), grouped sections of plain rows with a grey line of explanation,
+// notes under the sections, and Restore Defaults at the bottom.
+
+/// A grey note under a section.
+private struct Footnote: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
 
 // MARK: - General
 
@@ -14,10 +31,12 @@ struct GeneralPage: View {
 
     var body: some View {
         Form {
-            Section(tr("Система", "System")) {
+            Section { PageHeader(page: .general) }
+
+            Section {
                 ToggleRow(
-                    symbol: "power", color: .red, title: tr("Открывать при входе", "Open at login"),
-                    subtitle: tr("Запускать Islet при входе в систему.", "Start Islet when you log in."),
+                    title: tr("Открывать при входе", "Open at login"),
+                    subtitle: tr("Islet запустится сам, когда вы войдёте в систему.", "Islet starts by itself when you log in."),
                     isOn: $loginItem)
                     .onChange(of: loginItem) { _, enabled in
                         guard enabled != (LoginItem.isEnabled || LoginItem.needsApproval) else { return }
@@ -25,10 +44,10 @@ struct GeneralPage: View {
                         loginItem = LoginItem.isEnabled || LoginItem.needsApproval
                     }
                 if let loginMessage {
-                    Text(loginMessage).font(.caption).foregroundStyle(.secondary)
+                    Footnote(loginMessage)
                 }
                 ToggleRow(
-                    symbol: "menubar.rectangle", color: .blue, title: tr("Значок в строке меню", "Menu bar icon"),
+                    title: tr("Значок в строке меню", "Menu bar icon"),
                     subtitle: tr(
                         "Меню с плеером, таймером и настройками. Без значка настройки открываются, если запустить Islet ещё раз.",
                         "A menu with the player, the timer and the settings. Without it, open Islet again to get the settings."),
@@ -37,44 +56,36 @@ struct GeneralPage: View {
                     HotKeyField(combo: $settings.hotKey)
                 } label: {
                     RowLabel(
-                        symbol: "keyboard", color: .gray, title: tr("Сочетание клавиш", "Shortcut"),
-                        subtitle: tr("Раскрывает и сворачивает остров; возвращает спрятанный.", "Expands and collapses the island; brings a hidden one back."))
+                        title: tr("Сочетание клавиш", "Shortcut"),
+                        subtitle: tr("Раскрывает и сворачивает остров, возвращает спрятанный.", "Expands and collapses the island, brings a hidden one back."))
                 }
-                LabeledContent {
-                    Picker(tr("Язык", "Language"), selection: $settings.language) {
-                        Text(tr("Как в системе", "System")).tag(AppLanguage.system)
-                        Text("Русский").tag(AppLanguage.ru)
-                        Text("English").tag(AppLanguage.en)
-                    }
-                    .labelsHidden()
-                    .fixedSize()
-                } label: {
-                    RowLabel(symbol: "globe", color: .blue, title: tr("Язык", "Language"))
+                Picker(tr("Язык", "Language"), selection: $settings.language) {
+                    Text(tr("Как в системе", "System")).tag(AppLanguage.system)
+                    Text("Русский").tag(AppLanguage.ru)
+                    Text("English").tag(AppLanguage.en)
                 }
             }
 
-            Section(tr("Внешний вид", "Appearance")) {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        RowLabel(
-                            title: tr("Тема", "Theme"),
-                            subtitle: tr("Окна и меню Islet. Сам остров всегда чёрный.", "Islet's windows and menus. The island itself is always black."))
-                        Spacer()
-                        Text(themeName(settings.appTheme)).foregroundStyle(.secondary)
-                    }
-                    ChoiceCards(selection: $settings.appTheme, options: AppTheme.allCases, label: themeName) { theme, _ in
-                        ThemeThumbnail(theme: theme)
-                    }
+            Section {
+                ChoiceCards(selection: $settings.appTheme, options: AppTheme.allCases, label: themeName) { theme, _ in
+                    ThemeThumbnail(theme: theme)
                 }
+            } header: {
+                Text(tr("Оформление", "Appearance"))
+            } footer: {
+                Footnote(tr("Окна и меню Islet. Сам остров всегда чёрный.", "Islet's windows and menus. The island itself is always black."))
             }
 
-            Section(tr("Спрятать остров", "Hiding the island")) {
-                RowLabel(
-                    symbol: "computermouse.fill", color: .gray, title: tr("Щелчок колёсиком мыши", "Mouse wheel click"),
-                    subtitle: tr(
-                        "Щелчок колёсиком по острову прячет его вместе с капсулой. Вернуть: снова колёсиком на том же месте, сочетанием клавиш или «Показать остров» в меню.",
-                        "A wheel click on the island hides it and its capsule. Bring it back with another wheel click there, the shortcut, or \"Show the island\" in the menu."))
+            Section {
+                LabeledContent(tr("Спрятать", "Hide"), value: tr("Щелчок колёсиком по острову", "Wheel click on the island"))
+                LabeledContent(tr("Вернуть", "Bring back"), value: tr("Колёсиком там же или сочетанием клавиш", "Wheel click there, or the shortcut"))
+            } header: {
+                Text(tr("Спрятать остров", "Hiding the island"))
+            } footer: {
+                Footnote(tr("Остров прячется вместе с капсулой активности. Вернуть его можно и из меню в строке меню.", "The island hides with its activity capsule. It can also be brought back from the menu bar menu."))
             }
+
+            Section {} footer: { RestoreDefaultsButton(page: .general, settings: settings) }
         }
         .formStyle(.grouped)
         .onAppear { loginItem = LoginItem.isEnabled || LoginItem.needsApproval }
@@ -82,9 +93,9 @@ struct GeneralPage: View {
 
     private func themeName(_ theme: AppTheme) -> String {
         switch theme {
-        case .system: tr("Как в системе", "System")
-        case .light: tr("Светлая", "Light")
-        case .dark: tr("Тёмная", "Dark")
+        case .system: tr("Авто", "Auto")
+        case .light: tr("Светлое", "Light")
+        case .dark: tr("Тёмное", "Dark")
         }
     }
 }
@@ -98,6 +109,8 @@ struct PermissionsPage: View {
 
     var body: some View {
         Form {
+            Section { PageHeader(page: .permissions) }
+
             Section(tr("Используется", "In use")) {
                 LabeledContent {
                     HStack(spacing: 10) {
@@ -107,9 +120,7 @@ struct PermissionsPage: View {
                         }
                     }
                 } label: {
-                    RowLabel(
-                        symbol: "music.note", color: .pink, title: tr("Что играет", "Now playing"),
-                        subtitle: sourceNote)
+                    RowLabel(symbol: "music.note", color: .pink, title: tr("Что играет", "Now playing"), subtitle: sourceNote)
                 }
                 LabeledContent {
                     VStack(alignment: .trailing, spacing: 6) {
@@ -122,8 +133,8 @@ struct PermissionsPage: View {
                     RowLabel(
                         symbol: "waveform", color: .red, title: tr("Запись системного звука", "System audio recording"),
                         subtitle: tr(
-                            "Только для полосок эквалайзера: считаются уровни четырёх полос частот, звук не записывается и не сохраняется. Можно не давать — полоски просто анимируются.",
-                            "Only for the equaliser bars: the levels of four frequency bands, nothing is recorded or stored. You can refuse it; the bars then just animate."))
+                            "Только для полосок эквалайзера: считаются уровни четырёх полос частот, звук не записывается и не сохраняется. Можно отказать — полоски просто анимируются.",
+                            "Only for the equaliser bars: the levels of four frequency bands; nothing is recorded or stored. You can refuse; the bars then just animate."))
                 }
             }
 
@@ -138,7 +149,7 @@ struct PermissionsPage: View {
                     symbol: "headphones", color: .blue, title: "Bluetooth",
                     subtitle: tr("Не нужен: наушники видны по выходу звука. Заряд AirPods не читается.", "Not needed: headphones are seen as the sound output. The AirPods battery is not read."))
                 RowLabel(
-                    symbol: "folder.fill", color: .purple, title: tr("Файлы", "Files"),
+                    symbol: "folder.fill", color: .cyan, title: tr("Файлы", "Files"),
                     subtitle: tr("Только процент копирования и загрузки, если это включено. Имена и содержимое файлов не читаются.", "Only the percent of copies and downloads, when turned on. File names and contents are never read."))
                 RowLabel(
                     symbol: "chart.bar.fill", color: .green, title: tr("Статистика", "Analytics"),
@@ -209,26 +220,27 @@ struct AboutPage: View {
     var body: some View {
         Form {
             Section {
-                HStack(spacing: 16) {
+                VStack(spacing: 6) {
                     Image(nsImage: NSApp.applicationIconImage)
                         .resizable()
-                        .frame(width: 64, height: 64)
+                        .frame(width: 96, height: 96)
                         .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Islet").font(.title2.weight(.semibold))
-                        Text(tr("Версия ", "Version ") + version).foregroundStyle(.secondary)
-                        Text(tr("«Сейчас играет» в виде острова у верхнего края экрана.", "Now Playing as an island at the top of the screen."))
-                            .font(.callout)
-                    }
+                    Text("Islet").font(.largeTitle.weight(.bold))
+                    Text(tr("Версия ", "Version ") + version).foregroundStyle(.secondary)
+                    Text(tr("«Сейчас играет» в виде острова у верхнего края экрана.", "Now Playing as an island at the top of the screen."))
+                        .font(.callout)
+                        .padding(.top, 4)
                 }
-                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
             }
-            Section(tr("Конфиденциальность", "Privacy")) {
-                RowLabel(
-                    symbol: "lock.fill", color: .blue, title: tr("Ничего не собирается", "Nothing is collected"),
-                    subtitle: tr(
-                        "Islet не собирает статистику и не ходит в сеть. Исключение — обложки Spotify в запасном режиме. Подробнее — в разделе «Разрешения».",
-                        "Islet collects nothing and stays offline, except Spotify artwork in fallback mode. See Permissions for details."))
+            Section {
+                Text(tr(
+                    "Islet не собирает статистику и не ходит в сеть. Исключение — обложки Spotify в запасном режиме. Подробнее — в разделе «Разрешения».",
+                    "Islet collects nothing and stays offline, except Spotify artwork in fallback mode. See Permissions for details."))
+                    .fixedSize(horizontal: false, vertical: true)
+            } header: {
+                Text(tr("Конфиденциальность", "Privacy"))
             }
             Section(tr("Лицензии", "Licenses")) {
                 LabeledContent("Islet", value: "MIT")
@@ -255,51 +267,44 @@ struct IslandPage: View {
                 IslandPreview(settings: settings, media: media, expanded: false)
             }
 
-            Section(tr("Вид", "Look")) {
-                VStack(alignment: .leading, spacing: 10) {
-                    ChoiceCards(
-                        selection: $settings.islandStyle, options: [.automatic, .island, .notch], label: lookName
-                    ) { style, _ in
-                        LookThumbnail(style: style)
-                    }
-                    Text(styleNote).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Section {
+                ChoiceCards(
+                    selection: $settings.islandStyle, options: [.automatic, .island, .notch], label: lookName
+                ) { style, _ in
+                    LookThumbnail(style: style)
                 }
+            } header: {
+                Text(tr("Вид", "Look"))
+            } footer: {
+                Footnote(styleNote)
+            }
+
+            Section {
                 ToggleRow(
-                    symbol: "circle.dashed", color: .gray, title: tr("Тонкая обводка", "Thin outline"),
+                    title: tr("Тонкая обводка", "Thin outline"),
                     subtitle: tr("Едва заметный светлый край, как у iPhone на тёмных обоях.", "A faint light edge, as on the iPhone over a dark wallpaper."),
                     isOn: $settings.islandOutline)
                 ToggleRow(
-                    symbol: "arrow.up.left.and.arrow.down.right", color: .teal,
                     title: tr("В полноэкранных приложениях", "In full-screen apps"),
                     subtitle: tr("Показывать остров и поверх программ на весь экран.", "Show the island over full-screen apps too."),
                     isOn: $settings.showInFullScreen)
             }
 
-            Section(tr("Дисплей", "Display")) {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        RowLabel(title: tr("Где показывать", "Show on"))
-                        Spacer()
-                        Text(displayName(settings.screenSelection)).foregroundStyle(.secondary)
-                    }
-                    ChoiceCards(
-                        selection: $settings.screenSelection, options: [.all, .main, .builtIn, .external],
-                        label: displayName
-                    ) { selection, selected in
-                        DisplayThumbnail(selection: selection, selected: selected)
-                    }
+            Section {
+                ChoiceCards(
+                    selection: $settings.screenSelection, options: [.all, .main, .builtIn, .external],
+                    label: displayName
+                ) { selection, selected in
+                    DisplayThumbnail(selection: selection, selected: selected)
                 }
+            } header: {
+                Text(tr("Дисплеи", "Displays"))
             }
 
             Section(tr("Размер и положение", "Size and position")) {
-                LabeledContent {
-                    Picker(tr("Остров на мониторе", "Island on a monitor"), selection: $settings.monitorPlacement) {
-                        Text(tr("Поверх строки меню", "Over the menu bar")).tag(MonitorPlacement.overMenuBar)
-                        Text(tr("Под ней", "Below it")).tag(MonitorPlacement.belowMenuBar)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .fixedSize()
+                Picker(selection: $settings.monitorPlacement) {
+                    Text(tr("Поверх строки меню", "Over the menu bar")).tag(MonitorPlacement.overMenuBar)
+                    Text(tr("Под ней", "Below it")).tag(MonitorPlacement.belowMenuBar)
                 } label: {
                     RowLabel(
                         title: tr("Остров на мониторе", "Island on a monitor"),
@@ -315,6 +320,8 @@ struct IslandPage: View {
                     title: tr("Размер острова", "Island size"), value: $settings.islandScale,
                     range: AppSettings.Limits.scale, step: 0.05, format: SettingsFormat.percent)
             }
+
+            Section {} footer: { RestoreDefaultsButton(page: .island, settings: settings) }
         }
         .formStyle(.grouped)
     }
@@ -329,7 +336,7 @@ struct IslandPage: View {
 
     private func displayName(_ selection: ScreenSelection) -> String {
         switch selection {
-        case .all: tr("Все экраны", "All displays")
+        case .all: tr("Все", "All")
         case .main: tr("Основной", "Primary")
         case .builtIn: tr("Встроенный", "Built-in")
         case .external: tr("Внешние", "External")
@@ -363,7 +370,7 @@ struct NowPlayingPage: View {
 
             Section(tr("Раскрытие", "Expanding")) {
                 ToggleRow(
-                    symbol: "cursorarrow.rays", color: .blue, title: tr("Раскрывать при наведении", "Expand on hover"),
+                    title: tr("Раскрывать при наведении", "Expand on hover"),
                     subtitle: tr("Иначе — щелчком по острову.", "Otherwise click the island."),
                     isOn: $settings.expandOnHover)
                 if settings.expandOnHover {
@@ -382,8 +389,8 @@ struct NowPlayingPage: View {
 
             Section(tr("Новый трек", "New track")) {
                 ToggleRow(
-                    symbol: "music.note.list", color: .pink, title: tr("Раскрывать при смене трека", "Expand when the track changes"),
-                    subtitle: tr("Остров ненадолго показывает обложку и название нового трека.", "The island briefly shows the new track's artwork and title."),
+                    title: tr("Показывать новый трек", "Show a new track"),
+                    subtitle: tr("Остров ненадолго раскрывается с обложкой и названием.", "The island opens for a moment with the artwork and the title."),
                     isOn: $settings.expandOnTrackChange)
                 if settings.expandOnTrackChange {
                     SliderRow(
@@ -394,7 +401,7 @@ struct NowPlayingPage: View {
 
             Section(tr("Пауза", "Paused")) {
                 ToggleRow(
-                    symbol: "pause.fill", color: .orange, title: tr("Прятать на паузе", "Hide when paused"),
+                    title: tr("Прятать на паузе", "Hide when paused"),
                     subtitle: tr("Выключите, чтобы остров на паузе оставался на экране.", "Turn off to keep a paused island on screen."),
                     isOn: $settings.autoHideEnabled)
                 if settings.autoHideEnabled {
@@ -404,35 +411,34 @@ struct NowPlayingPage: View {
                 }
             }
 
-            Section(tr("Свёрнутый остров", "Compact island")) {
+            Section {
                 ToggleRow(
-                    symbol: "textformat", color: .gray, title: tr("Название трека", "Track title"),
+                    title: tr("Название трека", "Track title"),
                     subtitle: tr("Между обложкой и полосками; длинное прокручивается.", "Between the artwork and the bars; a long one scrolls."),
                     isOn: $settings.compactTitle)
                 ToggleRow(
-                    symbol: "paintpalette.fill", color: .purple, title: tr("Цвет по обложке", "Colour from artwork"),
+                    title: tr("Цвет по обложке", "Colour from artwork"),
                     subtitle: tr("Полоски и название окрашиваются в цвет обложки.", "The bars and the title take the artwork's colour."),
                     isOn: $settings.tintFromArtwork)
-                LabeledContent {
-                    Picker(tr("Эквалайзер", "Equaliser"), selection: $settings.liveEqualizer) {
-                        Text(tr("Анимация", "Animation")).tag(false)
-                        Text(tr("По звуку", "Live sound")).tag(true)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .fixedSize()
+                Picker(selection: $settings.liveEqualizer) {
+                    Text(tr("Анимация", "Animation")).tag(false)
+                    Text(tr("По звуку", "Live sound")).tag(true)
                 } label: {
-                    RowLabel(symbol: "waveform", color: .red, title: tr("Эквалайзер", "Equaliser"), subtitle: audioNote)
+                    RowLabel(title: tr("Полоски эквалайзера", "Equaliser bars"), subtitle: audioNote)
                 }
                 if settings.liveEqualizer && audio.status == .silent {
-                    Button(tr("Открыть настройки конфиденциальности…", "Open Privacy settings…")) {
+                    Button(tr("Открыть настройки конфиденциальности…", "Open Privacy Settings…")) {
                         // Privacy & Security → Screen & System Audio Recording.
                         if let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AudioCapture") {
                             NSWorkspace.shared.open(url)
                         }
                     }
                 }
+            } header: {
+                Text(tr("Свёрнутый остров", "Compact island"))
             }
+
+            Section {} footer: { RestoreDefaultsButton(page: .nowPlaying, settings: settings) }
         }
         .formStyle(.grouped)
     }
@@ -460,33 +466,32 @@ struct TimerPage: View {
 
     var body: some View {
         Form {
-            Section(tr("Запустить", "Start")) {
-                RowLabel(
-                    symbol: "timer", color: .orange, title: tr("Таймер", "Timer"),
-                    subtitle: tr("Капсула с кольцом рядом с островом; щелчок раскрывает её. То же есть в меню в строке меню.", "A capsule with a ring beside the island; click it to open. Also in the menu bar menu."))
-                HStack(spacing: 8) {
-                    ForEach(Self.minutes, id: \.self) { value in
-                        Button(tr("\(value) мин", "\(value) min")) { activities.startTimer(minutes: Double(value)) }
+            Section { PageHeader(page: .timer) }
+
+            Section {
+                LabeledContent(tr("Таймер", "Timer")) {
+                    HStack(spacing: 6) {
+                        ForEach(Self.minutes, id: \.self) { value in
+                            Button(tr("\(value) мин", "\(value) min")) { activities.startTimer(minutes: Double(value)) }
+                        }
                     }
                 }
-                .controlSize(.small)
-                LabeledContent {
+                LabeledContent(tr("Секундомер", "Stopwatch")) {
                     Button(tr("Запустить", "Start")) { activities.startStopwatch() }
-                        .controlSize(.small)
-                } label: {
-                    RowLabel(
-                        symbol: "stopwatch", color: .orange, title: tr("Секундомер", "Stopwatch"),
-                        subtitle: tr("Циферблат со стрелкой рядом с островом.", "A dial with a hand beside the island."))
                 }
+            } header: {
+                Text(tr("Запустить", "Start"))
+            } footer: {
+                Footnote(tr("Таймер и секундомер запускаются и из меню в строке меню.", "The timer and the stopwatch also start from the menu bar menu."))
             }
 
-            Section(tr("Звук", "Sound")) {
+            Section(tr("Окончание", "When it ends")) {
                 ToggleRow(
-                    symbol: "bell.fill", color: .red, title: tr("Звук по окончании", "Sound when it ends"),
+                    title: tr("Звуковой сигнал", "Alert sound"),
                     subtitle: tr("Кроме звука, капсула 10 секунд показывает «Готово».", "Besides the sound, the capsule shows Done for 10 seconds."),
                     isOn: $settings.timerSound)
                 if settings.timerSound {
-                    LabeledContent {
+                    LabeledContent(tr("Звук", "Sound")) {
                         HStack(spacing: 8) {
                             Picker(tr("Звук", "Sound"), selection: $settings.timerSoundName) {
                                 ForEach(AppSettings.timerSounds, id: \.self) { Text($0).tag($0) }
@@ -501,11 +506,11 @@ struct TimerPage: View {
                             .help(tr("Прослушать", "Play"))
                             .accessibilityLabel(tr("Прослушать", "Play"))
                         }
-                    } label: {
-                        RowLabel(symbol: "speaker.wave.2.fill", color: .pink, title: tr("Звук сигнала", "Alert sound"))
                     }
                 }
             }
+
+            Section {} footer: { RestoreDefaultsButton(page: .timer, settings: settings) }
         }
         .formStyle(.grouped)
     }
@@ -518,37 +523,33 @@ struct BatteryPage: View {
 
     var body: some View {
         Form {
+            Section { PageHeader(page: .battery) }
+
             Section {
-                ToggleRow(
-                    symbol: "battery.75percent", color: .green, title: tr("Уведомления о питании", "Power notices"),
-                    subtitle: tr("Остров ненадолго растягивается и показывает заряд. Читается только состояние батареи, без разрешений. На Mac без батареи их не бывает.", "The island stretches for a moment and shows the charge. Only the battery state is read, no permissions. A Mac without a battery never shows them."),
-                    isOn: $settings.showPowerActivity)
+                ToggleRow(title: tr("Уведомления о питании", "Power notices"), isOn: $settings.showPowerActivity)
+            } footer: {
+                Footnote(tr("Читается только состояние батареи, без разрешений. На Mac без батареи уведомлений нет.", "Only the battery state is read, with no permission. A Mac without a battery shows none."))
             }
+
             if settings.showPowerActivity {
                 Section(tr("Когда показывать", "When to show")) {
+                    ToggleRow(title: tr("Зарядка подключена или отключена", "Charger plugged in or out"), isOn: $settings.showChargerNotices)
                     ToggleRow(
-                        symbol: "bolt.fill", color: .green, title: tr("Зарядка подключена или отключена", "Charger plugged in or out"),
-                        isOn: $settings.showChargerNotices)
-                    ToggleRow(
-                        symbol: "battery.25percent", color: .red, title: tr("Низкий заряд", "Low battery"),
+                        title: tr("Низкий заряд", "Low battery"),
                         subtitle: tr("Один раз, когда заряд опускается до порога.", "Once, when the charge drops to the threshold."),
                         isOn: $settings.showLowBatteryNotice)
                     if settings.showLowBatteryNotice {
-                        LabeledContent {
-                            Picker(tr("Порог", "Threshold"), selection: $settings.lowBatteryThreshold) {
-                                ForEach(PowerMonitor.lowThresholdChoices, id: \.self) { Text("\($0) %").tag($0) }
-                            }
-                            .labelsHidden()
-                            .fixedSize()
-                        } label: {
-                            RowLabel(title: tr("Порог низкого заряда", "Low battery at"))
+                        Picker(tr("Порог низкого заряда", "Low battery at"), selection: $settings.lowBatteryThreshold) {
+                            ForEach(PowerMonitor.lowThresholdChoices, id: \.self) { Text("\($0) %").tag($0) }
                         }
                     }
                 }
-                Section(tr("Показ", "Display")) {
+                Section {
                     NoticeDurationRow(settings: settings)
                 }
             }
+
+            Section {} footer: { RestoreDefaultsButton(page: .battery, settings: settings) }
         }
         .formStyle(.grouped)
     }
@@ -561,22 +562,24 @@ struct HeadphonesPage: View {
 
     var body: some View {
         Form {
+            Section { PageHeader(page: .headphones) }
+
             Section {
                 ToggleRow(
-                    symbol: "airpodspro", color: .blue, title: tr("Подключение наушников", "Headphones connected"),
-                    subtitle: tr("Когда Bluetooth-наушники или колонка становятся выходом звука, остров показывает устройство и его название.", "When Bluetooth headphones or a speaker become the sound output, the island shows the device and its name."),
+                    title: tr("Подключение наушников", "Headphones connected"),
+                    subtitle: tr("Значок устройства слева, его название справа.", "The device's glyph on the left, its name on the right."),
                     isOn: $settings.showHeadphonesActivity)
+            } footer: {
+                Footnote(tr("Заряд наушников не показывается: для этого нужно разрешение Bluetooth или закрытый API Apple.", "The headphones' battery is not shown: that would need Bluetooth permission or a private Apple API."))
             }
+
             if settings.showHeadphonesActivity {
-                Section(tr("Показ", "Display")) {
+                Section {
                     NoticeDurationRow(settings: settings)
                 }
             }
-            Section {
-                RowLabel(
-                    symbol: "battery.50percent", color: .gray, title: tr("Заряд наушников", "Headphone battery"),
-                    subtitle: tr("Не показывается: для этого нужно разрешение Bluetooth или закрытый API Apple.", "Not shown: it would need Bluetooth permission or a private Apple API."))
-            }
+
+            Section {} footer: { RestoreDefaultsButton(page: .headphones, settings: settings) }
         }
         .formStyle(.grouped)
     }
@@ -602,17 +605,20 @@ struct TransfersPage: View {
 
     var body: some View {
         Form {
+            Section { PageHeader(page: .transfers) }
+
             Section {
                 ToggleRow(
-                    symbol: "arrow.down.circle.fill", color: .purple, title: tr("Копирование и загрузка файлов", "File copies and downloads"),
-                    subtitle: tr("Капсула с процентом рядом с островом.", "A capsule with the percent beside the island."),
+                    title: tr("Копирование и загрузка файлов", "File copies and downloads"),
+                    subtitle: tr("Экспериментально.", "Experimental."),
                     isOn: $settings.showTransferActivity)
+            } footer: {
+                Footnote(tr(
+                    "Islet следит за «Загрузками», «Рабочим столом», «Документами» и подключёнными томами и видит только процент. Имена и содержимое файлов не читаются.",
+                    "Islet watches Downloads, Desktop, Documents and mounted volumes and sees only the percent. File names and contents are never read."))
             }
-            Section(tr("Что читается", "What is read")) {
-                RowLabel(
-                    symbol: "folder.fill", color: .purple, title: tr("Только процент", "Percent only"),
-                    subtitle: tr("Следит за «Загрузками», «Рабочим столом», «Документами» и подключёнными томами. Имена и содержимое файлов не читаются. Экспериментально.", "Watches Downloads, Desktop, Documents and mounted volumes. File names and contents are never read. Experimental."))
-            }
+
+            Section {} footer: { RestoreDefaultsButton(page: .transfers, settings: settings) }
         }
         .formStyle(.grouped)
     }

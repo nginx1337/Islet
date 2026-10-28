@@ -3,7 +3,8 @@ import IsletCore
 import SwiftUI
 
 /// Settings window (SwiftUI in an AppKit window, since Islet has no Dock icon or main menu).
-/// Laid out like System Settings: pages in a sidebar with search, each page with its own Reset.
+/// Laid out like System Settings: pages in a sidebar with search, a header on top of each page and
+/// Restore Defaults at its bottom. Standard controls only, so the window takes the system's look.
 final class SettingsWindowController {
     private var window: NSWindow?
     private let settings: AppSettings
@@ -19,7 +20,7 @@ final class SettingsWindowController {
     func show() {
         if window == nil {
             let host = NSHostingController(rootView: SettingsView(settings: settings, media: media, activities: activities))
-            // The page title, its subtitle and the Reset button go into the window's toolbar.
+            // The page title goes into the window's toolbar.
             host.sceneBridgingOptions = [.title, .toolbars]
             host.sizingOptions = [.minSize]
             let window = NSWindow(contentViewController: host)
@@ -74,17 +75,35 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         }
     }
 
-    var subtitle: String {
+    /// What the page is for, under its name at the top of the page.
+    var summary: String {
         switch self {
-        case .general: tr("Автозапуск, значок в строке меню, сочетание клавиш, язык и тема.", "Login, menu bar icon, shortcut, language and theme.")
-        case .permissions: tr("Что Islet использует и чего не трогает.", "What Islet uses and what it never touches.")
-        case .about: tr("Версия, конфиденциальность и лицензии.", "Version, privacy and licenses.")
-        case .island: tr("Вид, экраны, размер и положение острова.", "Look, displays, size and position of the island.")
-        case .nowPlaying: tr("Как остров раскрывается, прячется и выглядит с музыкой.", "How the island opens, hides and looks with music.")
-        case .timer: tr("Таймер и секундомер рядом с островом.", "Timer and stopwatch beside the island.")
-        case .battery: tr("Уведомления о зарядке и низком заряде.", "Charger and low battery notices.")
-        case .headphones: tr("Уведомление о подключении наушников.", "A notice when headphones connect.")
-        case .transfers: tr("Прогресс копирования и загрузки файлов.", "File copy and download progress.")
+        case .general:
+            tr("Автозапуск, значок в строке меню, сочетание клавиш, язык и оформление Islet.",
+               "Login, the menu bar icon, the shortcut, the language and how Islet looks.")
+        case .permissions:
+            tr("Islet просит только то, без чего не обойтись. Здесь видно, что используется сейчас и чего Islet не касается.",
+               "Islet asks only for what it cannot do without. See what is in use now and what Islet never touches.")
+        case .about:
+            tr("Версия, конфиденциальность и лицензии.", "Version, privacy and licenses.")
+        case .island:
+            tr("Вид острова, экраны, на которых он появляется, его размер и положение.",
+               "The island's look, the displays it appears on, its size and position.")
+        case .nowPlaying:
+            tr("Как остров раскрывается, прячется и выглядит, пока играет музыка.",
+               "How the island opens, hides and looks while music plays.")
+        case .timer:
+            tr("Таймер и секундомер живут в капсуле рядом с островом. Щелчок раскрывает её с кнопками.",
+               "The timer and the stopwatch live in a capsule beside the island. Click it to open the buttons.")
+        case .battery:
+            tr("Остров ненадолго растягивается, когда подключают зарядку или заряд подходит к концу.",
+               "The island stretches for a moment when a charger is plugged in or the battery runs low.")
+        case .headphones:
+            tr("Остров показывает наушники или колонку, когда они становятся выходом звука.",
+               "The island shows headphones or a speaker when they become the sound output.")
+        case .transfers:
+            tr("Капсула с процентом рядом с островом, пока копируются или загружаются файлы.",
+               "A capsule with the percent beside the island while files copy or download.")
         }
     }
 
@@ -134,7 +153,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     func matches(_ query: String) -> Bool {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return true }
-        return [title, subtitle, keywords].contains { $0.localizedCaseInsensitiveContains(q) }
+        return [title, summary, keywords].contains { $0.localizedCaseInsensitiveContains(q) }
     }
 
     /// Puts this page's settings back to their defaults. Pages that only show information have none.
@@ -160,7 +179,6 @@ struct SettingsView: View {
     let activities: ActivityModel
     @State private var page: SettingsPage?
     @State private var query = ""
-    @State private var confirmReset = false
 
     init(settings: AppSettings, media: NowPlayingModel, activities: ActivityModel, page: SettingsPage = .general) {
         self.settings = settings
@@ -176,7 +194,8 @@ struct SettingsView: View {
                 ForEach(SettingsPage.sections) { section in
                     let pages = section.pages.filter { $0.matches(query) }
                     if !pages.isEmpty {
-                        Section(section.title) {
+                        // Groups without headings, set apart by space, as in System Settings.
+                        Section {
                             ForEach(pages) { item in
                                 Label {
                                     Text(item.title)
@@ -194,22 +213,6 @@ struct SettingsView: View {
         } detail: {
             detail(current)
                 .navigationTitle(current.title)
-                .navigationSubtitle(current.subtitle)
-                .toolbar {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button(tr("Сбросить", "Reset")) { confirmReset = true }
-                            .disabled(!current.canReset)
-                            .help(tr("Вернуть настройки этого раздела к исходным", "Put this page's settings back to their defaults"))
-                    }
-                }
-                .confirmationDialog(
-                    tr("Сбросить настройки раздела «\(current.title)»?", "Reset the \(current.title) settings?"),
-                    isPresented: $confirmReset
-                ) {
-                    Button(tr("Сбросить", "Reset"), role: .destructive) { current.reset(settings) }
-                } message: {
-                    Text(tr("Остальные разделы не изменятся.", "Other pages stay as they are."))
-                }
         }
         .frame(minWidth: 760, minHeight: 520)
         // A new language redraws every page and the sidebar.

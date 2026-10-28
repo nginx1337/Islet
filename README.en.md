@@ -59,7 +59,7 @@ Everything is local: no network, no new permissions, and every source has its ow
 
 ## Settings
 
-The window works like System Settings: pages in a sidebar with search, an icon and an explanation on every row, and a Reset button on every page.
+The window works like System Settings in macOS 27 and is built from standard controls, so it looks like the system (Liquid Glass, light and dark): pages in a sidebar with search, a header with the icon, name and purpose on top of each page (a live preview for the island), a short explanation under the rows, and Restore Defaults at the bottom.
 
 - **General**: open at login, the menu bar icon (without it, open Islet again to get the settings), the shortcut, the language, and the theme of windows and menus (system, light, dark).
 - **Permissions**: what Islet uses (the Now Playing source, system audio recording for the bars) with the state of each, and what it never touches (network, keyboard, Bluetooth, files).

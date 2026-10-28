@@ -21,6 +21,48 @@ struct SettingsIcon: View {
     }
 }
 
+/// The top of a page, as in System Settings: a large icon, the page's name and what it is for.
+struct PageHeader: View {
+    let page: SettingsPage
+
+    var body: some View {
+        VStack(spacing: 8) {
+            SettingsIcon(symbol: page.symbol, color: page.color, size: 54)
+            Text(page.title).font(.title2.weight(.bold))
+            Text(page.summary)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// "Restore Defaults…" at the bottom right of a page, as in System Settings; asks first.
+struct RestoreDefaultsButton: View {
+    let page: SettingsPage
+    let settings: AppSettings
+    @State private var confirm = false
+
+    var body: some View {
+        HStack {
+            Spacer()
+            Button(tr("Восстановить исходные…", "Restore Defaults…")) { confirm = true }
+        }
+        .confirmationDialog(
+            tr("Вернуть исходные настройки раздела «\(page.title)»?", "Restore the default \(page.title) settings?"),
+            isPresented: $confirm
+        ) {
+            Button(tr("Восстановить", "Restore"), role: .destructive) { page.reset(settings) }
+        } message: {
+            Text(tr("Остальные разделы не изменятся.", "Other pages stay as they are."))
+        }
+    }
+}
+
 /// An optional icon, a title and an optional grey line under it.
 struct RowLabel: View {
     var symbol: String?
@@ -132,7 +174,7 @@ struct ChoiceCards<Value: Hashable, Picture: View>: View {
                             }
                         Text(label(option))
                             .font(.caption)
-                            .foregroundStyle(selected ? Color.accentColor : .secondary)
+                            .foregroundStyle(selected ? .primary : .secondary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                     }
