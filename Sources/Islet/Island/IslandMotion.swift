@@ -18,10 +18,17 @@ enum IslandMotion {
     static let satellite = Animation.spring(duration: 0.46, bounce: 0.2)
     /// A bubble coming out of the island's edge.
     static let emerge = Animation.spring(duration: 0.5, bounce: 0.12)
-    /// A bubble going back into the island: no overshoot, so it does not pop out again at the end.
-    static let absorb = Animation.spring(duration: 0.42, bounce: 0)
+    /// A bubble or a notice going back into the island: no overshoot, so it does not pop out again.
+    static let absorbDuration = 0.42
+    static let absorb = Animation.spring(duration: absorbDuration, bounce: 0)
     /// A live activity going away, and its card closing back into its bubble: settles without wobbling.
-    static let dismiss = Animation.spring(duration: 0.34, bounce: 0)
+    static let dismissDuration = 0.34
+    static let dismiss = Animation.spring(duration: dismissDuration, bounce: 0)
+    /// A notice stretching out of the island: a little past its width and back, like the iPhone's.
+    static let noticeOpen = Animation.spring(duration: 0.5, bounce: 0.22)
+    /// An activity getting out of the way of the island opening under it.
+    static let quickExitDuration = 0.18
+    static let quickExit = Animation.easeOut(duration: quickExitDuration)
     /// The activity card opening out of its bubble or island.
     static let cardOpen = Animation.spring(duration: 0.42, bounce: 0.16)
     /// The activity's contents swapping (another activity, or another presentation).

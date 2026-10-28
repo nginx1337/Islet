@@ -117,6 +117,48 @@ struct StateMachineTests {
         #expect(machine.presentation == .expanded(.hover), "the 3 s timer no longer closes it")
     }
 
+    @Test func hoverDelayWaitsForThePointerToRest() {
+        let machine = makeMachine { $0.hoverDelay = 0.5 }
+        machine.mediaChanged(track("A"))
+        clock.advance(by: 3.1)
+        machine.pointerEntered()
+        #expect(machine.presentation == .compact(dimmed: false))
+        clock.advance(by: 0.49)
+        #expect(machine.presentation == .compact(dimmed: false))
+        clock.advance(by: 0.02)
+        #expect(machine.presentation == .expanded(.hover))
+    }
+
+    @Test func passingOverTheIslandDoesNotOpenItWithADelay() {
+        let machine = makeMachine { $0.hoverDelay = 0.5 }
+        machine.mediaChanged(track("A"))
+        clock.advance(by: 3.1)
+        machine.pointerEntered()
+        clock.advance(by: 0.3)
+        machine.pointerExited()
+        clock.advance(by: 1)
+        #expect(machine.presentation == .compact(dimmed: false))
+        #expect(machine.activeTimerCount == 0, "the pending hover is forgotten")
+    }
+
+    @Test func hoverDelayDoesNotHoldBackATakeover() {
+        let machine = makeMachine { $0.hoverDelay = 0.5 }
+        machine.mediaChanged(track("A"))
+        machine.pointerEntered()
+        #expect(machine.presentation == .expanded(.hover), "already open for the new track: taken over at once")
+    }
+
+    @Test func clickDuringTheHoverDelayOpensAtOnce() {
+        let machine = makeMachine { $0.hoverDelay = 0.8 }
+        machine.mediaChanged(track("A"))
+        clock.advance(by: 3.1)
+        machine.pointerEntered()
+        machine.clicked()
+        #expect(machine.presentation == .expanded(.click))
+        clock.advance(by: 1)
+        #expect(machine.presentation == .expanded(.click))
+    }
+
     @Test func pointerStillInsideWhenTrackChangeEndsKeepsItOpen() {
         let machine = makeMachine { $0.expandOnHover = false }
         machine.mediaChanged(track("A"))

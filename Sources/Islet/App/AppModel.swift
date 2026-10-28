@@ -15,7 +15,7 @@ final class AppModel {
     private let transfers: TransferMonitor
     private var wakeObserver: NSObjectProtocol?
     private var statusMenu: StatusMenuController?
-    private lazy var settingsWindow = SettingsWindowController(settings: settings, media: media)
+    private lazy var settingsWindow = SettingsWindowController(settings: settings, media: media, activities: activities)
 
     init() {
         let switcher = SourceSwitcher(
@@ -28,8 +28,8 @@ final class AppModel {
         islands = IslandCoordinator(media: media, activities: activities, settings: settings, clock: clock)
         activities.onChange = { [weak self] in self?.islands.activitiesChanged() }
         activityCenter.onTimerFinished = { [weak self] in
-            guard self?.settings.timerSound == true else { return }
-            (NSSound(named: NSSound.Name("Glass")) ?? NSSound(named: NSSound.Name("Ping")))?.play()
+            guard let self, self.settings.timerSound else { return }
+            Self.playTimerSound(self.settings.timerSoundName)
         }
         power.onNotice = { [weak self] info in self?.activityCenter.postNotice(.power(info)) }
         headphones.onConnect = { [weak self] name in self?.activityCenter.postNotice(.headphones(name: name)) }
@@ -65,6 +65,7 @@ final class AppModel {
             MainActor.assumeIsolated { self?.activityCenter.refresh() }
         }
         applyActivitySettings()
+        applyAppearance()
         HotKeyCenter.shared.action = { [weak self] in self?.islands.hotkeyPressed() }
         HotKeyCenter.shared.register(settings.hotKey)
         observeSettings()
@@ -82,6 +83,11 @@ final class AppModel {
 
     func showSettings() {
         settingsWindow.show()
+    }
+
+    /// One of the system alert sounds, Glass if it is missing.
+    static func playTimerSound(_ name: String) {
+        (NSSound(named: NSSound.Name(name)) ?? NSSound(named: NSSound.Name("Glass")))?.play()
     }
 
     /// The audio tap runs only while an island is visible and something plays. Stopping waits
@@ -126,9 +132,23 @@ final class AppModel {
         }
     }
 
+    /// The theme of Islet's windows and menus, and the menu bar icon.
+    private func applyAppearance() {
+        NSApp.appearance = settings.appTheme.appearance
+        statusMenu?.isVisible = settings.showMenuBarIcon
+    }
+
     /// Each activity source runs only while its switch is on.
     private func applyActivitySettings() {
-        if settings.showPowerActivity { power.start() } else { power.stop() }
+        activityCenter.noticeDuration = settings.noticeSeconds
+        power.lowThreshold = settings.lowBatteryThreshold
+        power.announcesCharger = settings.showChargerNotices
+        power.announcesLowBattery = settings.showLowBatteryNotice
+        if settings.showPowerActivity && (settings.showChargerNotices || settings.showLowBatteryNotice) {
+            power.start()
+        } else {
+            power.stop()
+        }
         if settings.showHeadphonesActivity { headphones.start() } else { headphones.stop() }
         if settings.showTransferActivity {
             transfers.start()
@@ -143,8 +163,14 @@ final class AppModel {
             _ = settings.hotKey
             _ = settings.liveEqualizer
             _ = settings.showPowerActivity
+            _ = settings.showChargerNotices
+            _ = settings.showLowBatteryNotice
+            _ = settings.lowBatteryThreshold
+            _ = settings.noticeSeconds
             _ = settings.showHeadphonesActivity
             _ = settings.showTransferActivity
+            _ = settings.appTheme
+            _ = settings.showMenuBarIcon
         } onChange: { [weak self] in
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
@@ -152,6 +178,7 @@ final class AppModel {
                     self.media.tintFromArtwork = self.settings.tintFromArtwork
                     self.updateAudio()
                     self.applyActivitySettings()
+                    self.applyAppearance()
                     if HotKeyCenter.shared.current != self.settings.hotKey {
                         HotKeyCenter.shared.register(self.settings.hotKey)
                     }

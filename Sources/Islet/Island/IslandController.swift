@@ -43,6 +43,40 @@ final class IslandViewModel {
         return SatellitePlacement.shape(of: frame, mode: mode, in: layout)
     }
 
+    /// Everything needed to draw the activity as it is now, or nil when there is none.
+    var satelliteSnapshot: SatelliteSnapshot? {
+        guard let activity = activities.current, let mode = satelliteMode, let spec = satelliteShape else { return nil }
+        return SatelliteSnapshot(activity: activity, mode: mode, shape: spec, main: shape, layout: layout)
+    }
+
+    /// Activities on their way out, drawn from their last look until their animation ends.
+    private(set) var leavingSatellites: [LeavingSatellite] = []
+    @ObservationIgnored private var lastSatellite: SatelliteSnapshot?
+
+    /// Called after anything that can change the activity: when another activity (or a notice that
+    /// gives way to a bubble) takes its place, the old one is kept to animate out. Both are drawn in
+    /// the same frame, so nothing blinks; the old one is dropped when its animation is over.
+    func syncSatellite() {
+        let now = satelliteSnapshot
+        if let last = lastSatellite, last.identity != now?.identity {
+            leavingSatellites.removeAll { $0.snapshot.identity == now?.identity }
+            // A notice over an island that just opened gets out of its way at once; anything else
+            // goes back into the island.
+            let leaving = LeavingSatellite(snapshot: last, quick: last.mode == .notice && presentation.isExpanded)
+            leavingSatellites.append(leaving)
+            let id = leaving.id
+            let gone = DispatchWorkItem { [weak self] in
+                MainActor.assumeIsolated { self?.satelliteGone(id) }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + leaving.exitDuration + 0.05, execute: gone)
+        }
+        lastSatellite = now
+    }
+
+    func satelliteGone(_ id: UUID) {
+        leavingSatellites.removeAll { $0.id == id }
+    }
+
     /// Whether the pointer is on the activity, inside its outline (not in the empty corners of its frame).
     /// A notice takes no clicks and no hover: menu bar items under it keep working and the island under
     /// it still expands.
@@ -220,6 +254,7 @@ final class IslandController {
     /// The activity appeared, moved, opened or went away: re-check what is under the pointer, so the
     /// panel takes mouse events only over something visible.
     func refreshSatellite() {
+        viewModel.syncSatellite()
         updateSatellite(local: layout.panelPoint(fromGlobal: NSEvent.mouseLocation))
     }
 

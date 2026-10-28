@@ -12,8 +12,9 @@ public enum SatelliteMode: Equatable, Sendable {
     /// Clicked: a large card in the island's place with the time and big buttons (Apple's "expanded").
     /// It closes when the pointer leaves it.
     case expanded
-    /// A short notice (charger, headphones): a card that drops out of the island for a few seconds,
-    /// with a large glyph, a title and a subtitle. It only shows the notice: clicks go through it.
+    /// A short notice (charger, headphones): for a few seconds the island stretches sideways into a long
+    /// pill, a glyph or a word on the left and the value on the right, as the iPhone shows AirPods or
+    /// a low battery. It only shows the notice: clicks go through it.
     case notice
 }
 
@@ -32,9 +33,13 @@ public enum SatellitePlacement {
     public static let islandEar: CGFloat = 60
     /// Width of the activity island on a screen without a physical notch.
     public static let islandWidth: CGFloat = 150
-    /// Size of the notice card below the menu bar or notch (scale 1).
-    public static let noticeWidth: CGFloat = 320
-    public static let noticeHeight: CGFloat = 72
+    /// Width of a notice pill without a physical notch (scale 1); it is as tall as the island.
+    public static let noticeWidth: CGFloat = 220
+    /// Width of each side of a physical notch that holds a notice ("Low battery" on the left).
+    public static let noticeEar: CGFloat = 120
+    /// A notice is at least this much wider than the island on each side, so the island visibly
+    /// stretches into it even when a long title already makes it wide (scale 1).
+    public static let noticeGrowth: CGFloat = 24
     /// Height of the expanded activity card below the menu bar or notch (scale 1); it is as wide as
     /// the expanded music island.
     public static let cardHeight: CGFloat = 84
@@ -92,26 +97,31 @@ public enum SatellitePlacement {
                 width: layout.expanded.frame.width,
                 height: layout.contentTopInset + (cardHeight * s).rounded())
         case .notice:
-            // Never narrower than the island it drops out of (a long compact title makes it wider).
-            let width = max((noticeWidth * s).rounded(), main.frame.width, layout.compact.frame.width)
-            return centred(width: width, height: layout.contentTopInset + (noticeHeight * s).rounded())
+            let c = contentScale(layout)
+            let base = hasPhysicalNotch(layout)
+                ? layout.notchWidth + 2 * (noticeEar * c).rounded()
+                : (noticeWidth * c).rounded()
+            // The island stretches into it: it covers the island completely and always comes out of it
+            // on both sides, however wide a long compact title makes the island.
+            let grown = main.opacity > 0 ? main.frame.width + 2 * (noticeGrowth * c).rounded() : 0
+            return centred(width: max(base, grown), height: height)
         }
     }
 }
 
 extension SatellitePlacement {
     /// The outline an activity is drawn with in a mode (corner radius and the notch flare), shared by
-    /// the view and the hit test. Notch looks hang the island and the cards from the top edge.
+    /// the view and the hit test. Notch looks hang the island, the notices and the cards from the top edge.
     public static func shape(of frame: CGRect, mode: SatelliteMode, in layout: IslandLayout) -> ShapeSpec {
         let notchLook = layout.style == .notch
         switch mode {
         case .bubble:
             return ShapeSpec(frame: frame, cornerRadius: frame.height / 2)
-        case .island:
+        case .island, .notice:
             return notchLook
                 ? ShapeSpec(frame: frame, cornerRadius: layout.compact.cornerRadius, topFlare: layout.compact.topFlare)
                 : ShapeSpec(frame: frame, cornerRadius: frame.height / 2)
-        case .expanded, .notice:
+        case .expanded:
             return ShapeSpec(
                 frame: frame, cornerRadius: layout.expanded.cornerRadius,
                 topFlare: notchLook ? layout.expanded.topFlare : 0)

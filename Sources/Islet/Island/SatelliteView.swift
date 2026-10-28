@@ -6,7 +6,7 @@ import SwiftUI
 ///   island's edge like a drop and goes back into it;
 /// - island: the activity in the island's own shape when nothing else plays, glyph left, value right;
 /// - expanded: clicked open into a card with the time and big buttons;
-/// - notice: a card that drops out of the island for a few seconds (charger, headphones).
+/// - notice: for a few seconds the island stretches sideways into a long pill (charger, headphones).
 /// Click opens the card, a click on the card closes it; the buttons pause, resume and cancel.
 struct SatelliteView: View {
     let activity: LiveActivity
@@ -19,7 +19,8 @@ struct SatelliteView: View {
     let main: ShapeSpec
     let onTap: () -> Void
 
-    /// 0 while a bubble is still inside the island, 1 once it is in its place (see ``AnyTransition/emerge``).
+    /// 0 while a bubble is still inside the island (or a notice is no wider than the island), 1 once it is
+    /// in its place (see ``SatelliteEntrance``). A spring may take a notice a little past 1.
     @Environment(\.satelliteEmergence) private var emergence
     @Environment(\.displayScale) private var displayScale
 
@@ -32,11 +33,13 @@ struct SatelliteView: View {
     private var glyphSize: CGFloat { compactHeight * 0.46 }
     private var valueSize: CGFloat { max(11, compactHeight * 0.47) }
     private var notchShaped: Bool { shape.topFlare > 0 }
-    /// Width of each side of a physical notch, where the island mode puts its glyph and value.
+    /// Width of each side of a physical notch, where the island and the notice put their glyph and value.
     private var ear: CGFloat? {
-        guard mode == .island, SatellitePlacement.hasPhysicalNotch(layout) else { return nil }
+        guard mode == .island || mode == .notice, SatellitePlacement.hasPhysicalNotch(layout) else { return nil }
         return max(0, (size.width - layout.notchWidth) / 2)
     }
+    /// Space between a notice's words and the pill's ends, as on the iPhone.
+    private var noticeInset: CGFloat { (compactHeight * 0.3).rounded() }
     /// Cards keep their content below the menu bar or the notch.
     private var cardInset: CGFloat { layout.contentTopInset }
 
@@ -45,25 +48,35 @@ struct SatelliteView: View {
         // A bubble travels from inside the island's right end to its place.
         let travel = mode == .bubble ? size.width + SatellitePlacement.bubbleOffset(from: main) : 0
         let shift = -(1 - p) * travel
+        // A notice stretches out of the island sideways: the pill grows from the island's width to its own,
+        // a touch past it with the spring and back.
+        let stretch = min(max(emergence, 0), 1.08)
+        let width = mode == .notice ? noticeStart + (size.width - noticeStart) * stretch : size.width
         // Everything fills the frame it is given, which the island view animates: the outline morphs
         // from bubble to card and back. The content keeps its final size, sits at the top of a card or
         // in the middle of a bubble, and is clipped by the morphing outline, so it never reflows or
         // spills while the shape changes (like the island's own content).
         ZStack {
             background
+                // A notice fades over the island's content while it stretches, and out again while it
+                // shrinks back, so neither covers the other at once.
+                .opacity(mode == .notice ? Self.ease(p / 0.35) : 1)
             Color.clear
-                .overlay(alignment: mode == .expanded || mode == .notice ? .top : .center) {
+                .overlay(alignment: mode == .expanded ? .top : .center) {
                     ZStack {
                         content
                             .frame(width: size.width, height: size.height)
                             .id("\(activity.kind)-\(mode)")
                             .transition(.opacity.animation(IslandMotion.swap))
                     }
-                    // The ring or glyph shows up once the bubble is mostly out.
-                    .opacity(mode == .bubble ? Self.ease((p - 0.55) / 0.35) : 1)
+                    // The ring or glyph shows up once the bubble is mostly out, the words once the
+                    // notice is wide enough for them.
+                    .opacity(contentOpacity(progress: p))
                 }
                 .clipShape(contentClip)
         }
+        .frame(width: width, height: size.height)
+        .frame(width: size.width, height: size.height)
         .offset(x: shift)
         .mask(alignment: .topLeading) {
             // Only what is outside the island shows, so the bubble seems to grow out of its edge.
@@ -85,6 +98,22 @@ struct SatelliteView: View {
         return UnevenRoundedRectangle(
             topLeadingRadius: top, bottomLeadingRadius: r, bottomTrailingRadius: r, topTrailingRadius: top,
             style: .continuous)
+    }
+
+    private func contentOpacity(progress p: CGFloat) -> CGFloat {
+        switch mode {
+        case .bubble: Self.ease((p - 0.55) / 0.35)
+        case .notice: Self.ease((p - 0.35) / 0.45)
+        case .island, .expanded: 1
+        }
+    }
+
+    /// The island's width when a notice starts to stretch out of it: the island itself, the camera
+    /// housing when nothing plays on a notched Mac, or a dot.
+    private var noticeStart: CGFloat {
+        if main.opacity > 0 { return min(main.frame.width, size.width) }
+        if SatellitePlacement.hasPhysicalNotch(layout) { return min(layout.notchWidth, size.width) }
+        return min(size.height, size.width)
     }
 
     // MARK: Pixel grid
@@ -199,7 +228,20 @@ struct SatelliteView: View {
         case .expanded:
             card
         case .notice:
-            noticeCard
+            if let ear {
+                // Beside a physical notch: each side in its own ear, nothing under the camera.
+                HStack(spacing: 0) {
+                    noticeLeading.frame(width: ear, alignment: .leading)
+                    Spacer(minLength: 0)
+                    noticeTrailing.frame(width: ear, alignment: .trailing)
+                }
+            } else {
+                HStack(spacing: 0) {
+                    noticeLeading
+                    Spacer(minLength: compactHeight * 0.3)
+                    noticeTrailing
+                }
+            }
         }
     }
 
@@ -434,91 +476,67 @@ struct SatelliteView: View {
             .minimumScaleFactor(0.6)
     }
 
-    // MARK: Notice card
+    // MARK: Notice
 
-    /// A large glyph, a title and a subtitle; the charge as a ring on the right.
-    private var noticeCard: some View {
-        let s = scale
-        return HStack(spacing: 14 * s) {
-            Image(systemName: noticeSymbol)
-                .font(.system(size: 28 * s, weight: .medium))
-                .symbolRenderingMode(.monochrome)
-                .foregroundStyle(noticeTint)
-                .offset(Self.opticalOffset(for: noticeSymbol, size: 28 * s))
-                .frame(width: 44 * s, height: 44 * s)
-            VStack(alignment: .leading, spacing: 2 * s) {
-                Text(noticeTitle)
-                    .font(.system(size: 15 * s, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                    .truncationMode(.tail)
-                Text(noticeSubtitle)
-                    .font(.system(size: 12.5 * s, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.6))
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 8 * s)
-            if let charge {
-                PercentRing(percent: charge.percent, tint: charge.tint, lineWidth: 3.5 * s, fontSize: 11 * s)
-                    .frame(width: 40 * s, height: 40 * s)
-            }
-        }
-        .padding(.horizontal, 18 * s)
-        .frame(width: size.width, height: max(0, size.height - cardInset))
-        .padding(.top, cardInset)
-    }
-
-    private var noticeSymbol: String {
-        switch activity.content {
-        case .power(let info) where info.event == .pluggedIn: "battery.100percent.bolt"
-        case .power(let info): powerSymbol(info)
-        case .headphones(let name): DeviceGlyph.symbol(forDeviceName: name)
-        case .countdown, .stopwatch, .transfer: "circle"
-        }
-    }
-
-    private var noticeTint: Color {
-        switch activity.content {
-        case .power(let info): powerTint(info)
-        case .countdown, .stopwatch, .transfer, .headphones: .white
-        }
-    }
-
-    private var noticeTitle: String {
+    /// Left side of a notice: the word for a power change, as the iPhone writes "Low Battery";
+    /// the device for headphones.
+    @ViewBuilder
+    private var noticeLeading: some View {
         switch activity.content {
         case .power(let info):
-            switch info.event {
-            case .pluggedIn: tr("Зарядка", "Charging")
-            case .unplugged: tr("От батареи", "On battery")
-            case .low: tr("Низкий заряд", "Low battery")
-            }
+            noticeText(powerTitle(info), tint: .white)
+                .padding(.leading, noticeInset)
         case .headphones(let name):
-            name.isEmpty ? tr("Наушники", "Headphones") : name
+            // Two tones like the iPhone's AirPods: white with grey tips.
+            // Larger than the island's glyphs: the notice is about this device.
+            Image(systemName: DeviceGlyph.symbol(forDeviceName: name))
+                .font(.system(size: (compactHeight * 0.56).rounded(), weight: .medium))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.white)
+                .frame(width: slot, height: slot)
         case .countdown, .stopwatch, .transfer:
-            ""
+            leading
         }
     }
 
-    private var noticeSubtitle: String {
+    /// Right side of a notice: the charge and a battery in the event's colour, or the device's name.
+    @ViewBuilder
+    private var noticeTrailing: some View {
         switch activity.content {
         case .power(let info):
-            switch info.event {
-            case .pluggedIn: tr("Кабель подключён", "Charger connected")
-            case .unplugged: tr("Кабель отключён", "Charger disconnected")
-            case .low: tr("Подключите зарядку", "Connect a charger")
+            HStack(spacing: (compactHeight * 0.16).rounded()) {
+                Text("\(info.percent)%")
+                    .font(.system(size: valueSize, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(powerTint(info))
+                BatteryGlyph(percent: info.percent, tint: powerTint(info))
+                    .frame(width: (compactHeight * 0.92).rounded(), height: (compactHeight * 0.42).rounded())
             }
-        case .headphones:
-            tr("Подключено", "Connected")
+            .fixedSize()
+            .padding(.trailing, noticeInset)
+        case .headphones(let name):
+            noticeText(name.isEmpty ? tr("Подключено", "Connected") : name, tint: .white)
+                .padding(.trailing, noticeInset)
         case .countdown, .stopwatch, .transfer:
-            ""
+            trailing.padding(.trailing, noticeInset)
         }
     }
 
-    /// The battery charge for the ring of a power notice.
-    private var charge: (percent: Int, tint: Color)? {
-        if case .power(let info) = activity.content { return (info.percent, powerTint(info)) }
-        return nil
+    /// One line that shrinks a little, then truncates, rather than spill under the camera.
+    private func noticeText(_ text: String, tint: Color) -> some View {
+        Text(text)
+            .font(.system(size: valueSize, weight: .semibold))
+            .foregroundStyle(tint)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .truncationMode(.tail)
+    }
+
+    private func powerTitle(_ info: PowerInfo) -> String {
+        switch info.event {
+        case .pluggedIn: tr("Зарядка", "Charging")
+        case .unplugged: tr("От батареи", "On Battery")
+        case .low: tr("Низкий заряд", "Low Battery")
+        }
     }
 
     // MARK: Helpers
@@ -568,33 +586,148 @@ struct SatelliteView: View {
     }
 }
 
-// MARK: - Coming out of the island
+// MARK: - Coming and going
 
 extension EnvironmentValues {
-    /// How far a bubble has come out of the island: 0 still inside it, 1 in its place.
+    /// How far an activity has come out of the island: 0 still inside it, 1 in its place.
     @Entry var satelliteEmergence: CGFloat = 1
 }
 
-/// Animates ``EnvironmentValues/satelliteEmergence`` while the bubble comes out of the island or goes back.
-nonisolated struct EmergenceModifier: ViewModifier, Animatable {
+/// What an activity looks like at one moment: enough to draw it while it goes away.
+struct SatelliteSnapshot {
+    let activity: LiveActivity
+    let mode: SatelliteMode
+    let shape: ShapeSpec
+    /// The music island's outline at that moment.
+    let main: ShapeSpec
+    let layout: IslandLayout
+
+    /// Another activity, or a notice giving way to a bubble, is a new view that comes out of the island
+    /// while the old one goes back in. A bubble, its card and the activity island are one view that
+    /// morphs from one into the other.
+    var identity: String {
+        "\(activity.kind.rawValue)-\(mode == .notice ? "notice" : "activity")"
+    }
+}
+
+/// An activity on its way out, drawn from its last look.
+struct LeavingSatellite: Identifiable {
+    let id = UUID()
+    let snapshot: SatelliteSnapshot
+    /// The island opened under it: it gets out of the way at once instead of going back into the island.
+    let quick: Bool
+
+    var exitAnimation: Animation {
+        if quick { return IslandMotion.quickExit }
+        switch snapshot.mode {
+        case .bubble, .notice: return IslandMotion.absorb
+        case .expanded, .island: return IslandMotion.dismiss
+        }
+    }
+
+    /// How long it stays drawn: its exit animation, then it is dropped.
+    var exitDuration: Double {
+        if quick { return IslandMotion.quickExitDuration }
+        switch snapshot.mode {
+        case .bubble, .notice: return IslandMotion.absorbDuration
+        case .expanded, .island: return IslandMotion.dismissDuration
+        }
+    }
+}
+
+/// The activity layer above the island: the current activity, and any that are still animating out.
+///
+/// Coming and going are driven here rather than by SwiftUI transitions: each activity animates its own
+/// progress when it appears, and one that leaves is kept, drawn from its last look, for exactly as long
+/// as its exit animation (``IslandViewModel/syncSatellite()``), so it can never be left behind on screen.
+struct SatelliteLayer: View {
+    let model: IslandViewModel
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(model.leavingSatellites) { item in
+                SatelliteHost(snapshot: item.snapshot, activities: model.activities, exit: item.exitAnimation, onTap: {})
+            }
+            if let snapshot = model.satelliteSnapshot {
+                SatelliteHost(
+                    snapshot: snapshot, activities: model.activities, exit: nil,
+                    onTap: { model.onSatelliteClick?() })
+                    .id(snapshot.identity)
+                    .transition(.identity)
+            }
+        }
+        .frame(width: model.layout.panelFrame.width, height: model.layout.panelFrame.height, alignment: .topLeading)
+    }
+}
+
+/// One activity in its place, with its entrance, or with its exit when it is leaving.
+struct SatelliteHost: View {
+    let snapshot: SatelliteSnapshot
+    let activities: ActivityModel
+    /// How it goes away; nil for the current activity, which comes in instead.
+    let exit: Animation?
+    let onTap: () -> Void
+    @State private var progress: CGFloat
+
+    init(snapshot: SatelliteSnapshot, activities: ActivityModel, exit: Animation?, onTap: @escaping () -> Void) {
+        self.snapshot = snapshot
+        self.activities = activities
+        self.exit = exit
+        self.onTap = onTap
+        _progress = State(initialValue: exit == nil ? 0 : 1)
+    }
+
+    var body: some View {
+        let s = snapshot
+        SatelliteView(
+            activity: s.activity, activities: activities, mode: s.mode, layout: s.layout,
+            shape: s.shape, main: s.main, onTap: onTap)
+            .modifier(SatelliteEntrance(progress: progress, mode: s.mode))
+            .frame(width: s.shape.frame.width, height: s.shape.frame.height)
+            // A notice only shows something: clicks reach the island and the menu bar under it.
+            .allowsHitTesting(exit == nil && s.mode != .notice)
+            .offset(x: s.shape.frame.minX, y: s.shape.frame.minY)
+            .onAppear {
+                withAnimation(exit ?? Self.entrance(for: s.mode)) {
+                    progress = exit == nil ? 1 : 0
+                }
+            }
+    }
+
+    /// A bubble comes out of the island's edge like a drop, a notice stretches out of the island,
+    /// a card drops down from it, the activity island takes its place.
+    private static func entrance(for mode: SatelliteMode) -> Animation {
+        switch mode {
+        case .bubble: IslandMotion.emerge
+        case .notice: IslandMotion.noticeOpen
+        case .expanded: IslandMotion.cardOpen
+        case .island: IslandMotion.satellite
+        }
+    }
+}
+
+/// How far an activity has come out: a bubble's travel and a notice's stretch (read by the view from
+/// the environment), and the scale and fade of a card or of the activity island.
+nonisolated struct SatelliteEntrance: ViewModifier, Animatable {
     var progress: CGFloat
+    let mode: SatelliteMode
 
     var animatableData: CGFloat {
         get { progress }
         set { progress = newValue }
     }
 
-    @MainActor
+    @MainActor @ViewBuilder
     func body(content: Content) -> some View {
-        content.environment(\.satelliteEmergence, progress)
-    }
-}
-
-extension AnyTransition {
-    /// The bubble comes out of the island's edge like a drop, and goes back into it when it ends.
-    static var emerge: AnyTransition {
-        let drop = AnyTransition.modifier(active: EmergenceModifier(progress: 0), identity: EmergenceModifier(progress: 1))
-        return .asymmetric(insertion: drop.animation(IslandMotion.emerge), removal: drop.animation(IslandMotion.absorb))
+        let p = min(max(progress, 0), 1)
+        switch mode {
+        case .bubble, .notice:
+            content.environment(\.satelliteEmergence, progress)
+        case .expanded:
+            content.scaleEffect(0.6 + 0.4 * p, anchor: .top).opacity(Double(p))
+        case .island:
+            content.scaleEffect(0.6 + 0.4 * p, anchor: .center).opacity(Double(p))
+        }
     }
 }
 
@@ -724,24 +857,34 @@ private struct ProgressRing: View {
     }
 }
 
-/// The battery charge as a ring with the number inside, like the Batteries widget.
-private struct PercentRing: View {
+/// The battery as the iPhone draws it in the island: a dim body in the event's colour, the charge in
+/// full colour with a straight edge, and the tip.
+private struct BatteryGlyph: View {
     let percent: Int
     let tint: Color
-    let lineWidth: CGFloat
-    let fontSize: CGFloat
 
     var body: some View {
-        ZStack {
-            Circle().stroke(tint.opacity(0.28), lineWidth: lineWidth)
-            Circle()
-                .trim(from: 0, to: max(0.02, Double(percent) / 100))
-                .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-            Text("\(percent)")
-                .font(.system(size: fontSize, weight: .semibold).monospacedDigit())
-                .foregroundStyle(.white)
+        GeometryReader { geometry in
+            let h = geometry.size.height
+            let gap = max(1, h * 0.08)
+            let tip = max(1.5, h * 0.14)
+            let bodyWidth = max(0, geometry.size.width - tip - gap)
+            let corner = RoundedRectangle(cornerRadius: h * 0.32, style: .continuous)
+            // A sliver stays visible at 0 %, as on the iPhone.
+            let charge = CGFloat(min(max(Double(percent) / 100, 0.06), 1))
+            HStack(spacing: gap) {
+                ZStack(alignment: .leading) {
+                    corner.fill(tint.opacity(0.38))
+                    Rectangle().fill(tint).frame(width: bodyWidth * charge)
+                }
+                .frame(width: bodyWidth)
+                .clipShape(corner)
+                UnevenRoundedRectangle(bottomTrailingRadius: tip * 0.6, topTrailingRadius: tip * 0.6, style: .continuous)
+                    .fill(tint.opacity(0.38))
+                    .frame(width: tip, height: h * 0.38)
+            }
+            .frame(width: geometry.size.width, height: h)
         }
-        .padding(lineWidth / 2)
+        .accessibilityHidden(true)
     }
 }

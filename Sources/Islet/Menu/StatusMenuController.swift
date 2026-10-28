@@ -32,6 +32,12 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         item.menu = menu
     }
 
+    /// The icon can be turned off in the settings; opening Islet again then shows the settings.
+    var isVisible: Bool {
+        get { item.isVisible }
+        set { item.isVisible = newValue }
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         if let state = media.state {
