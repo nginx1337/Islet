@@ -56,9 +56,9 @@ struct SatelliteView: View {
         // spills while the shape changes (like the island's own content).
         ZStack {
             background
-                // A notice covers the island's content with a quick fade rather than at once; with no
-                // island to stretch out of, it fades in while it grows from a dot.
-                .opacity(mode == .notice ? Self.ease(p / (noticeFromNothing ? 0.3 : 0.15)) : 1)
+                // A notice fades over the island's content while it stretches, and out again while it
+                // shrinks back, so neither covers the other at once.
+                .opacity(mode == .notice ? Self.ease(p / 0.35) : 1)
             Color.clear
                 .overlay(alignment: mode == .expanded ? .top : .center) {
                     ZStack {
@@ -112,11 +112,6 @@ struct SatelliteView: View {
         if main.opacity > 0 { return min(main.frame.width, size.width) }
         if SatellitePlacement.hasPhysicalNotch(layout) { return min(layout.notchWidth, size.width) }
         return min(size.height, size.width)
-    }
-
-    /// Nothing is drawn where the notice starts (the island is hidden and there is no notch).
-    private var noticeFromNothing: Bool {
-        main.opacity <= 0 && !SatellitePlacement.hasPhysicalNotch(layout)
     }
 
     // MARK: Pixel grid

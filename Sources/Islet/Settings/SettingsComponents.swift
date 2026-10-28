@@ -346,7 +346,9 @@ struct MenuBarStrip: View {
 struct IslandPreview: View {
     let settings: AppSettings
     let media: NowPlayingModel
+    /// Shown open; otherwise compact, and it opens while the pointer is on it, like the island.
     let expanded: Bool
+    @State private var hovering = false
 
     /// Room the preview has in a settings row; a larger island is scaled down to it.
     private static let room: CGFloat = 500
@@ -363,9 +365,12 @@ struct IslandPreview: View {
         let layout = IslandLayoutEngine.layout(for: screen, settings: settings.layoutSettings)
         let source = media.state == nil ? NowPlayingModel.sample : media
         let compact = layout.compact(fittingTitle: Self.titleWidth(source.state?.title, layout: layout))
-        let shape = expanded ? layout.expanded : compact
-        let presentation: IslandPresentation = expanded ? .expanded(.hover) : .compact(dimmed: false)
-        let fit = min(1, Self.room / max(1, shape.frame.width + 2 * shape.topFlare + 40))
+        let open = expanded || hovering
+        let shape = open ? layout.expanded : compact
+        let presentation: IslandPresentation = open ? .expanded(.hover) : .compact(dimmed: false)
+        // Sized for the open island in both states, so the page does not jump when it opens.
+        let tallest = layout.expanded
+        let fit = min(1, Self.room / max(1, tallest.frame.width + 2 * tallest.topFlare + 40))
         // Overlays do not take part in the layout: the strip is as wide as the row whatever the
         // island's size, and the island hangs from its top edge as from the screen's.
         Desktop.gradient
@@ -377,14 +382,23 @@ struct IslandPreview: View {
                     .frame(width: shape.frame.width, height: shape.frame.height)
                     .padding(.top, shape.frame.minY)
                     .scaleEffect(fit, anchor: .top)
+                    // Its buttons and progress bar are pictures here: no clicks reach the player.
+                    .allowsHitTesting(false)
             }
-            .frame(height: (shape.frame.maxY + (expanded ? 22 : 18)) * fit)
+            .frame(height: (tallest.frame.maxY + 22) * fit)
             .frame(maxWidth: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .environment(\.colorScheme, .dark)
-        .allowsHitTesting(false)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(tr("Предпросмотр острова", "Island preview"))
+            .contentShape(Rectangle())
+            .onHover { inside in
+                guard !expanded, inside != hovering else { return }
+                withAnimation(inside ? IslandMotion.grow : IslandMotion.settle) { hovering = inside }
+            }
+            // A changed setting moves and reshapes the island with its own springs, never at once.
+            .animation(IslandMotion.settle, value: settings.layoutSettings)
+            .animation(IslandMotion.title, value: source.state?.title)
+            .environment(\.colorScheme, .dark)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(tr("Предпросмотр острова", "Island preview"))
     }
 
     /// Width of the compact title, measured as the island measures it.

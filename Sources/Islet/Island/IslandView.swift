@@ -43,6 +43,11 @@ extension IslandRootView {
                     .allowsHitTesting(mode != .notice)
                     .offset(x: shape.frame.minX, y: shape.frame.minY)
                     .transition(Self.transition(for: mode))
+                    // Another activity, or a notice giving way to a bubble because the island opened
+                    // under it, is a new view: the old one goes back into the island and the new one
+                    // comes out of it, rather than one shape stretching into the other across the island.
+                    // A bubble, its card and the activity island stay one view and morph into each other.
+                    .id(Self.identity(of: activity, mode: mode))
             }
         }
         .frame(width: model.layout.panelFrame.width, height: model.layout.panelFrame.height, alignment: .topLeading)
@@ -50,6 +55,12 @@ extension IslandRootView {
         // Opening and closing the card animate where they happen (IslandController), and a change
         // of the island underneath moves the activity with the island's own spring.
         .animation(IslandMotion.satellite, value: model.activities.current?.kind)
+        // Hidden or shown with the island by a wheel click: goes and comes back with it.
+        .animation(IslandMotion.satellite, value: model.isSuppressed)
+    }
+
+    static func identity(of activity: LiveActivity, mode: SatelliteMode) -> String {
+        "\(activity.kind.rawValue)-\(mode == .notice ? "notice" : "activity")"
     }
 
     /// A bubble comes out of the island like a drop and goes back into it; a notice stretches out of the

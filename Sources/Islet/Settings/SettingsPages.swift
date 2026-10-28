@@ -265,6 +265,8 @@ struct IslandPage: View {
         Form {
             Section {
                 IslandPreview(settings: settings, media: media, expanded: false)
+            } footer: {
+                Footnote(tr("Наведите курсор на остров, чтобы он раскрылся.", "Point at the island to open it."))
             }
 
             Section {
