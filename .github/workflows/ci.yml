@@ -25,6 +25,24 @@ jobs:
         run: scripts/audit.sh
       - name: Unit tests
         run: swift test
+      # Pull requests only: the debug build draws the island and every settings page to PNG files
+      # (no permissions, no network), kept for a week so a change can be checked by eye.
+      - name: Render previews
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        timeout-minutes: 8
+        run: |
+          swift build
+          "$(swift build --show-bin-path)/Islet" --render-preview build/preview
+      - name: Upload previews
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview
+          path: build/preview
+          retention-days: 7
+          if-no-files-found: ignore
       - name: Build app bundle
         run: scripts/build-app.sh release
       - name: Release build has no debug hooks or build paths

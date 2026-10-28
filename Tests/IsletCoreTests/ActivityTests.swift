@@ -68,8 +68,23 @@ struct ActivityCenterTests {
     @Test func noticesExpireByThemselves() {
         center.postNotice(.power(PowerInfo(event: .pluggedIn, percent: 80)))
         #expect(center.current != nil)
-        clock.advance(by: ActivityCenter.noticeDuration + 0.1)
+        clock.advance(by: ActivityCenter.defaultNoticeDuration + 0.1)
         #expect(center.current == nil)
+    }
+
+    @Test func noticeDurationIsAdjustableWithinLimits() {
+        center.noticeDuration = 7
+        center.postNotice(.headphones(name: "AirPods"))
+        clock.advance(by: 6.9)
+        #expect(center.current?.kind == .headphones)
+        clock.advance(by: 0.2)
+        #expect(center.current == nil)
+        center.noticeDuration = 100
+        #expect(center.noticeDuration == ActivityCenter.noticeDurationRange.upperBound)
+        center.noticeDuration = 0
+        #expect(center.noticeDuration == ActivityCenter.noticeDurationRange.lowerBound)
+        center.noticeDuration = .nan
+        #expect(center.noticeDuration == ActivityCenter.defaultNoticeDuration)
     }
 
     @Test func importantActivitiesWinTheCapsule() {
@@ -82,7 +97,7 @@ struct ActivityCenterTests {
         center.postNotice(.power(PowerInfo(event: .unplugged, percent: 50)))
         #expect(center.current?.kind == .power)
         #expect(center.activities.count == 4)
-        clock.advance(by: ActivityCenter.noticeDuration + 0.1)
+        clock.advance(by: ActivityCenter.defaultNoticeDuration + 0.1)
         #expect(center.current?.kind == .timer)
     }
 

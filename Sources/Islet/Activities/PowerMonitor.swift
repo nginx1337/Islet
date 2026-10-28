@@ -5,8 +5,19 @@ import IsletCore
 /// Plug, unplug and low-battery notices from the system power sources (IOKit, public API).
 /// Needs no permission. A Mac without a battery never reports anything.
 final class PowerMonitor {
-    /// Percentage at which the low-battery notice appears while on battery.
-    static let lowThreshold = 20
+    /// Default percentage at which the low-battery notice appears while on battery.
+    static let defaultLowThreshold = 20
+    /// Thresholds the settings offer.
+    static let lowThresholdChoices = [10, 15, 20, 25, 30]
+
+    /// Percentage at which the low-battery notice appears while on battery (kept to 5…50).
+    var lowThreshold = PowerMonitor.defaultLowThreshold {
+        didSet { lowThreshold = min(max(lowThreshold, 5), 50) }
+    }
+    /// Announce plugging the charger in and out.
+    var announcesCharger = true
+    /// Announce a low battery.
+    var announcesLowBattery = true
 
     var onNotice: ((PowerInfo) -> Void)?
     private var source: CFRunLoopSource?
@@ -37,17 +48,19 @@ final class PowerMonitor {
         guard let before = lastOnAC else { return }
         if now.onAC != before {
             lowWarned = false
-            onNotice?(PowerInfo(event: now.onAC ? .pluggedIn : .unplugged, percent: now.percent))
+            if announcesCharger {
+                onNotice?(PowerInfo(event: now.onAC ? .pluggedIn : .unplugged, percent: now.percent))
+            }
             return
         }
         if now.onAC {
             lowWarned = false
-        } else if now.percent <= Self.lowThreshold {
+        } else if now.percent <= lowThreshold {
             if !lowWarned {
                 lowWarned = true
-                onNotice?(PowerInfo(event: .low, percent: now.percent))
+                if announcesLowBattery { onNotice?(PowerInfo(event: .low, percent: now.percent)) }
             }
-        } else if now.percent > Self.lowThreshold + 5 {
+        } else if now.percent > lowThreshold + 5 {
             lowWarned = false
         }
     }

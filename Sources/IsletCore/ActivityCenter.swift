@@ -6,8 +6,10 @@ import Foundation
 /// activity is about to expire, so with nothing to show the centre does no work at all.
 @MainActor
 public final class ActivityCenter {
-    /// How long a power or headphones notice stays (it covers the island meanwhile).
-    public static let noticeDuration: TimeInterval = 4
+    /// How long a power or headphones notice stays by default (it covers the island meanwhile).
+    public static let defaultNoticeDuration: TimeInterval = 4
+    /// The range the settings allow for ``noticeDuration``.
+    public static let noticeDurationRange: ClosedRange<TimeInterval> = 2...10
     /// How long a finished timer keeps ringing before it goes away.
     public static let finishedDuration: TimeInterval = 10
 
@@ -24,6 +26,17 @@ public final class ActivityCenter {
     private let clock: IslandClock
     private var entries: [ActivityKind: Entry] = [:]
     private var wakeUp: ScheduledTask?
+
+    /// How long a notice stays, kept inside ``noticeDurationRange``. A notice already on screen keeps
+    /// the length it was posted with.
+    public var noticeDuration: TimeInterval = ActivityCenter.defaultNoticeDuration {
+        didSet {
+            let range = Self.noticeDurationRange
+            let safe = noticeDuration.isFinite ? noticeDuration : Self.defaultNoticeDuration
+            let clamped = min(max(safe, range.lowerBound), range.upperBound)
+            if clamped != noticeDuration { noticeDuration = clamped }
+        }
+    }
 
     public init(clock: IslandClock) {
         self.clock = clock
@@ -81,7 +94,7 @@ public final class ActivityCenter {
 
     /// A short notice (power, headphones) that goes away by itself.
     public func postNotice(_ content: ActivityContent) {
-        set(content, expiresAt: clock.now.addingTimeInterval(Self.noticeDuration))
+        set(content, expiresAt: clock.now.addingTimeInterval(noticeDuration))
     }
 
     /// An activity that stays until it is removed (file transfers). An unchanged update is ignored.

@@ -34,6 +34,9 @@ public struct IslandBehavior: Equatable, Sendable {
     public var noMediaGrace: TimeInterval = 0.6
     /// A hotkey expansion closes itself after this delay unless the pointer is on the island.
     public var hotkeyDuration: TimeInterval = 5
+    /// The pointer must rest on the island this long before it expands (0: at once), so passing over
+    /// it on the way to the menu bar does not open it.
+    public var hoverDelay: TimeInterval = 0
     public var expandOnHover = true
     public var expandOnTrackChange = true
 
@@ -59,7 +62,7 @@ public final class IslandStateMachine {
         didSet {
             guard isSuppressed != oldValue else { return }
             if isSuppressed {
-                for kind in [TimerKind.collapse, .trackChange, .hotkey] { disarm(kind) }
+                for kind in [TimerKind.collapse, .trackChange, .hotkey, .hover] { disarm(kind) }
                 expansion = nil
             }
             recompute()
@@ -76,7 +79,7 @@ public final class IslandStateMachine {
     private var timers: [TimerKind: ScheduledTask] = [:]
 
     enum TimerKind: Hashable {
-        case noMedia, trackChange, collapse, pauseHide, hotkey
+        case noMedia, trackChange, collapse, pauseHide, hotkey, hover
     }
 
     public init(clock: IslandClock, behavior: IslandBehavior = IslandBehavior()) {
@@ -98,7 +101,7 @@ public final class IslandStateMachine {
                 self.expansion = nil
                 self.pauseExpired = false
                 self.announcedTrackID = nil
-                for kind in [TimerKind.trackChange, .collapse, .pauseHide, .hotkey] { self.disarm(kind) }
+                for kind in [TimerKind.trackChange, .collapse, .pauseHide, .hotkey, .hover] { self.disarm(kind) }
                 self.recompute()
             }
             return
@@ -138,16 +141,31 @@ public final class IslandStateMachine {
         isPointerInside = true
         disarm(.collapse)
         guard !presentation.isHidden, behavior.expandOnHover else { return }
-        if expansion == nil || expansion == .trackChange || expansion == .hotkey {
+        if expansion == .trackChange || expansion == .hotkey {
+            // Already open for a new track or the shortcut: the pointer takes it over at once.
             disarm(.trackChange)
             disarm(.hotkey)
             expansion = .hover
             recompute()
+        } else if expansion == nil {
+            guard behavior.hoverDelay > 0 else {
+                expansion = .hover
+                recompute()
+                return
+            }
+            arm(.hover, after: behavior.hoverDelay) { [weak self] in
+                guard let self, self.isPointerInside, self.expansion == nil, self.behavior.expandOnHover,
+                      !self.presentation.isHidden
+                else { return }
+                self.expansion = .hover
+                self.recompute()
+            }
         }
     }
 
     public func pointerExited() {
         isPointerInside = false
+        disarm(.hover)
         // A hotkey expansion also closes once the pointer has been on it and leaves
         // (with "expand on hover" off it never turns into a hover expansion).
         guard let expansion, expansion == .hover || expansion == .click || expansion == .hotkey else { return }
@@ -160,6 +178,7 @@ public final class IslandStateMachine {
 
     public func clicked() {
         guard !presentation.isHidden else { return }
+        disarm(.hover)
         disarm(.collapse)
         disarm(.trackChange)
         disarm(.hotkey)
@@ -185,7 +204,7 @@ public final class IslandStateMachine {
 
     /// Closes the expanded view right away (e.g. after the screen configuration changed).
     public func collapse() {
-        for kind in [TimerKind.collapse, .trackChange, .hotkey] { disarm(kind) }
+        for kind in [TimerKind.collapse, .trackChange, .hotkey, .hover] { disarm(kind) }
         expansion = nil
         recompute()
     }

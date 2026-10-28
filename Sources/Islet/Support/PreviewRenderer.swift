@@ -17,7 +17,7 @@ enum PreviewRenderer {
             artist: "Neon Coast", album: "Coastline", artworkData: artwork,
             duration: 243, elapsed: 97, timestamp: Date(), rate: 1, isPlaying: true)
         let clock = SystemClock()
-        let switcher = SourceSwitcher(primary: StaticSource(state: state), fallback: StaticSource(state: nil), clock: clock)
+        let switcher = SourceSwitcher(primary: SampleSource(state: state), fallback: SampleSource(state: nil), clock: clock)
         let media = NowPlayingModel(switcher: switcher)
         media.start()
         // Let the artwork decode (it runs off the main thread).
@@ -49,7 +49,7 @@ enum PreviewRenderer {
             bundleID: "com.apple.Safari", title: "CREAM SODA - ПОДРУГА", artist: "CREAM SODA",
             artworkData: artwork, duration: 200, elapsed: 30, timestamp: Date(), rate: 1, isPlaying: true)
         let shortMedia = NowPlayingModel(switcher: SourceSwitcher(
-            primary: StaticSource(state: shortState), fallback: StaticSource(state: nil), clock: clock))
+            primary: SampleSource(state: shortState), fallback: SampleSource(state: nil), clock: clock))
         shortMedia.start()
         RunLoop.main.run(until: Date().addingTimeInterval(0.4))
         for (name, screen) in [("monitor-short-title", monitor), ("notch-short-title", macBook)] {
@@ -133,22 +133,31 @@ enum PreviewRenderer {
         }
     }
 
-    /// Settings use AppKit-backed controls, so they are drawn in a real window parked off screen.
+    /// Settings use AppKit-backed controls, so they are drawn in a real window parked off screen:
+    /// every page, in the light and the dark look.
     static func renderSettings(media: NowPlayingModel, to dir: URL) {
-        let host = NSHostingController(rootView: SettingsView(settings: AppSettings.shared, media: media))
-        let window = NSWindow(contentViewController: host)
-        window.styleMask = [.titled, .closable]
-        window.title = tr("Islet — настройки", "Islet Settings")
-        window.setFrameOrigin(NSPoint(x: -20_000, y: -20_000))
-        window.orderFrontRegardless()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
-        guard let view = window.contentView?.superview ?? window.contentView,
-              let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
-        view.cacheDisplay(in: view.bounds, to: rep)
-        window.orderOut(nil)
-        let url = dir.appendingPathComponent("settings.png")
-        try? rep.representation(using: .png, properties: [:])?.write(to: url)
-        print(url.path)
+        for page in SettingsPage.allCases {
+            for (look, name) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+                let host = NSHostingController(rootView: SettingsView(
+                    settings: AppSettings.shared, media: media, activities: ActivityModel(), page: page))
+                host.sceneBridgingOptions = [.title, .toolbars]
+                let window = NSWindow(contentViewController: host)
+                window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+                window.toolbarStyle = .unified
+                window.appearance = NSAppearance(named: look)
+                window.setContentSize(NSSize(width: 820, height: 640))
+                window.setFrameOrigin(NSPoint(x: -20_000, y: -20_000))
+                window.orderFrontRegardless()
+                RunLoop.main.run(until: Date().addingTimeInterval(0.6))
+                defer { window.orderOut(nil) }
+                guard let view = window.contentView?.superview ?? window.contentView,
+                      let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { continue }
+                view.cacheDisplay(in: view.bounds, to: rep)
+                let url = dir.appendingPathComponent("settings-\(page.rawValue)-\(name).png")
+                try? rep.representation(using: .png, properties: [:])?.write(to: url)
+                print(url.path)
+            }
+        }
     }
 
     /// The island alone on a transparent background, at 3×, for the GitHub banner and card.
@@ -157,7 +166,7 @@ enum PreviewRenderer {
             bundleID: "com.apple.Music", title: "Night Drive", artist: "Neon Coast", album: "Coastline",
             artworkData: artwork, duration: 214, elapsed: 83, timestamp: Date(), rate: 1, isPlaying: true)
         let media = NowPlayingModel(switcher: SourceSwitcher(
-            primary: StaticSource(state: state), fallback: StaticSource(state: nil), clock: clock))
+            primary: SampleSource(state: state), fallback: SampleSource(state: nil), clock: clock))
         media.start()
         RunLoop.main.run(until: Date().addingTimeInterval(0.4))
         let monitor = ScreenDescriptor(
@@ -228,16 +237,4 @@ private struct PreviewScene<Island: View>: View {
     }
 }
 
-/// Emits one fixed state (preview only).
-private final class StaticSource: NowPlayingSource {
-    let kind = SourceKind.mediaRemote
-    let state: NowPlayingState?
-    init(state: NowPlayingState?) { self.state = state }
-    func start(_ onEvent: @escaping @MainActor (NowPlayingSourceEvent) -> Void) {
-        onEvent(.started)
-        onEvent(.update(state))
-    }
-    func stop() {}
-    func perform(_ command: PlaybackCommand) {}
-}
 #endif
