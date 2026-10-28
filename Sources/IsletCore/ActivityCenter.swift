@@ -6,7 +6,7 @@ import Foundation
 /// activity is about to expire, so with nothing to show the centre does no work at all.
 @MainActor
 public final class ActivityCenter {
-    /// How long a power or headphones notice stays (it covers part of the menu bar meanwhile).
+    /// How long a power or headphones notice stays (it covers the island meanwhile).
     public static let noticeDuration: TimeInterval = 4
     /// How long a finished timer keeps ringing before it goes away.
     public static let finishedDuration: TimeInterval = 10

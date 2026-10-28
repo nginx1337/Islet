@@ -29,7 +29,7 @@ struct IslandRootView: View {
 
 extension IslandRootView {
     /// The live activity: a bubble that comes out of the island's edge, the island itself when nothing
-    /// else plays, its card when clicked open, or a notice that drops out of the island.
+    /// else plays, its card when clicked open, or a notice the island stretches into.
     @ViewBuilder
     var satellite: some View {
         let mode = model.satelliteMode
@@ -52,13 +52,14 @@ extension IslandRootView {
         .animation(IslandMotion.satellite, value: model.activities.current?.kind)
     }
 
-    /// A bubble comes out of the island like a drop and goes back into it; cards drop down from the
-    /// island and fold back up into it; the activity island takes the island's place.
+    /// A bubble comes out of the island like a drop and goes back into it; a notice stretches out of the
+    /// island sideways and shrinks back into it; cards drop down from the island and fold back up into
+    /// it; the activity island takes the island's place.
     static func transition(for mode: SatelliteMode) -> AnyTransition {
         switch mode {
-        case .bubble:
+        case .bubble, .notice:
             .emerge
-        case .expanded, .notice:
+        case .expanded:
             .asymmetric(
                 insertion: .scale(scale: 0.6, anchor: .top).combined(with: .opacity),
                 removal: .scale(scale: 0.5, anchor: .top).combined(with: .opacity).animation(IslandMotion.dismiss))

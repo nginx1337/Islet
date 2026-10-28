@@ -257,15 +257,12 @@ struct SatelliteGeometryTests {
                 let layout = IslandLayoutEngine.layout(
                     for: screen, settings: LayoutSettings(notchScale: scale, islandScale: scale, compactTitle: true))
                 let widest = layout.compact(fittingTitle: 2000)
-                for mode in [SatelliteMode.expanded, .notice] {
-                    let card = SatellitePlacement.frame(in: layout, main: widest, mode: mode)
-                    #expect(card.minX <= widest.frame.minX && card.maxX >= widest.frame.maxX, "\(screen.id) \(mode) \(scale)")
-                    #expect(abs(card.midX - layout.compact.frame.midX) <= 0.5, "centred on the island (to the pixel)")
-                    #expect(card.height > layout.contentTopInset + 40 * layout.scale, "room for content below the menu bar")
-                    #expect(card.height < layout.expanded.frame.height, "smaller than the expanded music island")
-                }
-                let expanded = SatellitePlacement.frame(in: layout, main: widest, mode: .expanded)
-                #expect(expanded.width == layout.expanded.frame.width)
+                let card = SatellitePlacement.frame(in: layout, main: widest, mode: .expanded)
+                #expect(card.minX <= widest.frame.minX && card.maxX >= widest.frame.maxX, "\(screen.id) \(scale)")
+                #expect(abs(card.midX - layout.compact.frame.midX) <= 0.5, "centred on the island (to the pixel)")
+                #expect(card.height > layout.contentTopInset + 40 * layout.scale, "room for content below the menu bar")
+                #expect(card.height < layout.expanded.frame.height, "smaller than the expanded music island")
+                #expect(card.width == layout.expanded.frame.width)
             }
         }
     }
@@ -277,6 +274,38 @@ struct SatelliteGeometryTests {
         #expect(notice.width == SatellitePlacement.noticeWidth)
     }
 
+    @Test func noticeIsTheIslandStretchedSideways() {
+        for screen in [Self.macBook, Self.monitor] {
+            for scale in [0.7, 1.0, 1.5] {
+                for title in [false, true] {
+                    let layout = IslandLayoutEngine.layout(
+                        for: screen, settings: LayoutSettings(notchScale: scale, islandScale: scale, compactTitle: title))
+                    for main in [layout.hidden, layout.compact(fittingTitle: 2000)] {
+                        let notice = SatellitePlacement.frame(in: layout, main: main, mode: .notice)
+                        let label = "\(screen.id) \(scale) \(title)"
+                        #expect(notice.minY == layout.compact.frame.minY, "\(label)")
+                        #expect(notice.height == layout.compact.frame.height, "as tall as the island: \(label)")
+                        #expect(abs(notice.midX - layout.compact.frame.midX) <= 0.5, "centred on it: \(label)")
+                        #expect(notice.width > layout.compactBaseWidth, "wider than the island at rest: \(label)")
+                        if main.opacity > 0 {
+                            #expect(notice.minX <= main.frame.minX && notice.maxX >= main.frame.maxX, "covers it: \(label)")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func noticeKeepsEachSideBesideTheNotch() {
+        for scale in [0.7, 1.0, 1.5] {
+            let layout = IslandLayoutEngine.layout(for: Self.macBook, settings: LayoutSettings(notchScale: scale))
+            #expect(SatellitePlacement.hasPhysicalNotch(layout))
+            let notice = SatellitePlacement.frame(in: layout, main: layout.compact, mode: .notice)
+            // "Low battery" on the left, the charge and the battery on the right, at every size.
+            #expect((notice.width - layout.notchWidth) / 2 >= SatellitePlacement.noticeEar, "scale \(scale)")
+        }
+    }
+
     @Test func shapesMatchTheIslandTheyStandFor() {
         let notch = IslandLayoutEngine.layout(for: Self.macBook, settings: LayoutSettings())
         let pill = IslandLayoutEngine.layout(for: Self.monitor, settings: LayoutSettings())
@@ -286,12 +315,13 @@ struct SatelliteGeometryTests {
             #expect(circle.cornerRadius == bubble.height / 2 && circle.topFlare == 0, "a bubble is always a circle")
             #expect(!circle.contains(CGPoint(x: bubble.minX + 1, y: bubble.minY + 1)), "its empty corners take no clicks")
             #expect(circle.contains(CGPoint(x: bubble.midX, y: bubble.midY)))
-            for mode in [SatelliteMode.expanded, .notice] {
-                let card = SatellitePlacement.frame(in: layout, main: layout.compact, mode: mode)
-                let spec = SatellitePlacement.shape(of: card, mode: mode, in: layout)
-                #expect(spec.cornerRadius == layout.expanded.cornerRadius, "cards are rounded like the expanded island")
-                #expect(spec.topFlare == layout.expanded.topFlare, "and hang from the top edge in the notch look")
-            }
+            let card = SatellitePlacement.frame(in: layout, main: layout.compact, mode: .expanded)
+            let spec = SatellitePlacement.shape(of: card, mode: .expanded, in: layout)
+            #expect(spec.cornerRadius == layout.expanded.cornerRadius, "cards are rounded like the expanded island")
+            #expect(spec.topFlare == layout.expanded.topFlare, "and hang from the top edge in the notch look")
+            // A notice is the island itself, stretched: its ends and its flares are the island's.
+            let notice = SatellitePlacement.frame(in: layout, main: layout.compact, mode: .notice)
+            #expect(SatellitePlacement.shape(of: notice, mode: .notice, in: layout) == layout.compact.withFrame(notice))
         }
         let island = SatellitePlacement.frame(in: notch, main: notch.hidden, mode: .island)
         #expect(SatellitePlacement.shape(of: island, mode: .island, in: notch) == notch.compact.withFrame(island))
